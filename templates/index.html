@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WinnerPredictorML</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee+Spice&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/loader.css">
+    <style>
+         #predictionArea {
+            display: none;
+        }
+        /* Adicione o seu estilo personalizado aqui */
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: url("/static/images/background_website.png") no-repeat center center fixed;
+            background-size: cover;
+            background-color: #f0f0f0; /* Fallback color */
+        }
+
+        .container {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(255, 255, 255, 0.5); /* Transparent background */
+            padding: 20px;
+            border-radius: 10px; /* Rounded corners */
+        }
+
+        .title {
+            font-family: "Bungee Spice", sans-serif;
+            font-size: 24px;
+            font-weight: 400;
+            color: #228B22; /* Grass green color */
+            text-align: center;
+            margin-right: 20px;
+        }
+
+        select {
+            margin: 5px;
+        }
+
+        button {
+            padding: 1.3em 3em;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2.5px;
+            font-weight: 500;
+            color: #000;
+            background-color: #fff;
+            border: none;
+            border-radius: 45px;
+            box-shadow: 0px 8px 15px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease 0s;
+            cursor: pointer;
+            outline: none;
+        }
+
+        button:hover {
+            background-color: #23c483;
+            box-shadow: 0px 15px 20px rgba(46, 229, 157, 0.4);
+            color: #fff;
+            transform: translateY(-7px);
+        }
+
+        button:active {
+            transform: translateY(-1px);
+        }
+
+        .prediction-box {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            justify-content: space-between;
+            width: 80%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+
+        .prediction-text {
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .prediction-value {
+            font-size: 16px;
+            color: #23c483;
+        }
+
+        /* Adicione estilos para a área de previsão */
+        .prediction-area {
+            display: none; /* Inicialmente oculto */
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            background-color: #f9f9f9;
+        }
+
+        /* Estilos para o novo formulário de URL */
+        .url-form-container {
+            display: none; /* Inicialmente oculto */
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(255, 255, 255, 0.9);
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .url-form-container h2 {
+            font-size: 24px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .url-form-container input,
+        .url-form-container button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 10px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+
+        .url-form-container button {
+            background-color: #4CAF50;
+            color: white;
+            cursor: pointer;
+        }
+
+        .url-form-container button:hover {
+            background-color: #45a049;
+        }
+
+        .url-form-container .url-link {
+            margin-top: 10px;
+            color: #007BFF;
+            text-decoration: none;
+        }
+
+        .url-form-container .url-link:hover {
+            text-decoration: underline;
+        }
+
+        /* Estilos para a janela modal */
+        .modal {
+            display: none; /* Oculto inicialmente */
+            position: fixed;
+            z-index: 1;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgb(0,0,0); /* Fallback color */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            padding-top: 60px;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 500px;
+            border-radius: 10px;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+        }
+
+        .close:hover,
+        .close:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+            /* Estilos para o formulário de login */
+        .validation-form {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 400px;
+            padding: 40px;
+            transform: translate(-50%, -50%);
+            background: rgba(24, 20, 20, 0.987);
+            box-sizing: border-box;
+            box-shadow: 0 15px 25px rgba(0,0,0,.6);
+            border-radius: 10px;
+        }
+        .validation-form .user-box label {
+    position: absolute;
+    top: 0;
+    left: 0;
+    padding: 10px 0;
+    font-size: 16px;
+    color: #fff;
+    pointer-events: none;
+    transition: .5s;
+}
+
+.validation-form .user-box input:focus ~ label,
+.validation-form .user-box input:valid ~ label {
+    top: -20px;
+    left: 0;
+    color: #bdb8b8;
+    font-size: 12px;
+}
+
+.validation-form form button {
+    display: block;
+    margin: 0 auto;
+    padding: 10px 20px;
+    color: #ffffff;
+    font-size: 16px;
+    text-decoration: none;
+    text-transform: uppercase;
+    overflow: hidden;
+    transition: .5s;
+    margin-top: 40px;
+    letter-spacing: 4px;
+    background-color: #4CAF50;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+.validation-form .user-box input {
+    width: 100%;
+    padding: 10px 0;
+    font-size: 16px;
+    color: #fff;
+    margin-bottom: 30px;
+    border: none;
+    border-bottom: 1px solid #fff;
+    outline: none;
+    background: transparent;
+}
+.validation-form form button:hover {
+    background-color: #45a049;
+}
+
+.validation-form form a {
+    position: relative;
+    display: inline-block;
+    padding: 10px 20px;
+    color: #ffffff;
+    font-size: 16px;
+    text-decoration: none;
+    text-transform: uppercase;
+    overflow: hidden;
+    transition: .5s;
+    margin-top: 40px;
+    letter-spacing: 4px;
+}
+
+.validation-form a:hover {
+    background: #03f40f;
+    color: #fff;
+    border-radius: 5px;
+    box-shadow: 0 0 5px #03f40f, 0 0 25px #03f40f, 0 0 50px #03f40f, 0 0 100px #03f40f;
+}
+
+.validation-form a span {
+    position: absolute;
+    display: block;
+}
+
+@keyframes btn-anim1 {
+    0% {
+        left: -100%;
+    }
+
+    50%,100% {
+        left: 100%;
+    }
+}
+
+.validation-form a span:nth-child(1) {
+    bottom: 2px;
+    left: -100%;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, #03f40f);
+    animation: btn-anim1 2s linear infinite;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="title">Predicting Football Games by ML Algorithms</div>
+    <form id="predictionForm" method="POST" action="/submit">
+            <select id="season" name="season">
+                <!-- Opções do Select -->
+                <option value="1516">2015/2016</option>
+                <option value="1617">2016/2017</option>
+                <option value="1718">2017/2018</option>
+                <option value="1819">2018/2019</option>
+                <option value="1920">2019/2020</option>
+                <option value="2021">2020/2021</option>
+                <option value="2122">2021/2022</option>
+                <option value="2223">2022/2023</option>
+            </select>
+            <select id="league" name="league">
+                <!-- Opções do Select -->
+                <option value="Premier League">Premier League</option>
+                <option value="Bundesliga">Bundesliga</option>
+                <option value="La Liga">La Liga</option>
+                <option value="Serie A">Serie A</option>
+                <option value="Primeira Liga">Primeira Liga</option>
+                <option value="Ligue 1">Ligue 1</option>
+            </select>
+            <label for="club1" class="label">Clube Casa:</label>
+            <select id="club1" name="club1"></select>
+            <label for="club2" class="label">Clube Fora:</label>
+            <select id="club2" name="club2"></select>
+            <button type="submit">Submeter</button>
+        </form>
+        <div class="error-message" id="errorMessage"></div>
+    </div>
+
+    <!-- Novo formulário para o URL do OddsPortal -->
+    <div class="url-form-container" id="urlFormContainer" {% if show_url_form %}style="display: flex;"{% else %}style="display: none;"{% endif %}>
+        <h2>Introduza o link do OddsPortal</h2>
+        <form id="urlForm">
+            <input type="text" id="oddsUrl" placeholder="Insira o link aqui" required />
+            <button type="submit">Buscar odds</button>
+        </form>
+        <div class="flex justify-center mt-4">
+            <a href="https://www.oddsportal.com/" class="url-link" target="_blank">Clique aqui para aceder ao OddsPortal</a>
+        </div>
+    </div>
+<!-- Formulário de validação das odds-->
+<div class="validation-form-container" id="validation-form-container" style="display: none">
+    <form id="validation-form">
+        <div class="column">
+            <div class="user-box">
+                <input type="text" id="B365H" name="B365H" required>
+                <label>B365H</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="B365D" name="B365D" required>
+                <label>B365D</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="B365A" name="B365A" required>
+                <label>B365A</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="BWH" name="BWH" required>
+                <label>BWH</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="BWD" name="BWD" required>
+                <label>BWD</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="BWA" name="BWA" required>
+                <label>BWA</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="MaxH" name="MaxH" required>
+                <label>MaxH</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="MaxD" name="MaxD" required>
+                <label>MaxD</label>
+            </div>
+        </div>
+        <div class="column">
+            <div class="user-box">
+                <input type="text" id="MaxA" name="MaxA" required>
+                <label>MaxA</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="AvgH" name="AvgH" required>
+                <label>AvgH</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="AvgD" name="AvgD" required>
+                <label>AvgD</label>
+            </div>
+            <div class="user-box">
+                <input type="text" id="AvgA" name="AvgA" required>
+                <label>AvgA</label>
+            </div>
+        </div>
+        <center>
+            <button type="submit">Enviar</button>
+        </center>
+    </form>
+</div>
+    <!-- Área de previsão -->
+    <div class="prediction-area" id="predictionArea">
+        <div class="prediction-box">
+            <div class="prediction-text">Probabilidade das Odds:</div>
+            <div class="prediction-value" id="oddsProbability"></div>
+        </div>
+        <div class="prediction-box">
+            <div class="prediction-text">Previsão Linear:</div>
+            <div class="prediction-value" id="linearProbability"></div>
+        </div>
+        <div class="prediction-box">
+            <div class="prediction-text">Previsão Logística:</div>
+            <div class="prediction-value" id="logisticProbability"></div>
+        </div>
+        <div class="prediction-box">
+            <div class="prediction-text">Previsão GBM:</div>
+            <div class="prediction-value" id="gbmProbability"></div>
+        </div>
+        <div class="prediction-box">
+            <div class="prediction-text">Previsão RF:</div>
+            <div class="prediction-value" id="rfProbability"></div>
+        </div>
+        <div class="prediction-box">
+            <div class="prediction-text">Previsão SVM:</div>
+            <div class="prediction-value" id="svmProbability"></div>
+        </div>
+        <div class="prediction-box">
+            <div class="prediction-text">Previsão de Rede Neural:</div>
+            <div class="prediction-value" id="nnPrediction"></div>
+        </div>
+    </div>
+    <!-- LOADER -->
+    <div id="loader" class="wrapper" style="display: none;">
+        <div class="circle"></div>
+        <div class="circle"></div>
+        <div class="circle"></div>
+        <div class="shadow"></div>
+        <div class="shadow"></div>
+        <div class="shadow"></div>
+    </div>
+ <form id="downloadForm" action="/download" method="post">
+        <input type="hidden" name="csv_data" id="csvDataInput" value="">
+        <button type="submit" id="downloadButton" style="display: none;">Download CSV</button>
+    </form>
+    <!-- Modal para mensagens de alerta -->
+    <div id="alertModal" class="modal">
+        <div class="modal-content">
+            <span class="close">&times;</span>
+            <p id="alertMessage"></p>
+        </div>
+    </div>
+
+   <script>
+    document.addEventListener("DOMContentLoaded", function() {
+    const leagueSelect = document.getElementById("league");
+    const club1Select = document.getElementById("club1");
+    const club2Select = document.getElementById("club2");
+    const alertModal = document.getElementById("alertModal");
+    const alertMessage = document.getElementById("alertMessage");
+    const spanClose = document.getElementsByClassName("close")[0];
+    const predictionForm = document.getElementById('predictionForm');
+    const errorMessage = document.getElementById('errorMessage');
+    const urlFormContainer = document.getElementById('urlFormContainer');
+    const urlForm = document.getElementById('urlForm');
+    const predictionArea = document.getElementById('predictionArea');
+    const validationForm = document.getElementById('validation-form');
+    const validationFormContainer = document.getElementById('validation-form-container');
+    const loader = document.getElementById('loader');
+
+    function fillClubSelects(league) {
+        club1Select.innerHTML = "";
+        club2Select.innerHTML = "";
+
+        let clubs = [];
+
+        if (league === "Premier League") {
+            clubs = ["Arsenal", "Aston Villa", "Bournemouth", "Brentford", "Brighton", "Burnley", "Chelsea", "Crystal Palace", "Everton", "Fulham", "Liverpool", "Luton", "Man City", "Man United", "Newcastle", "Nottingham Forest", "Sheffield United", "Tottenham", "West Ham", "Wolves"];
+        } else if (league === "Bundesliga") {
+            clubs = ["Augsburg", "Bayer Leverkusen", "Bayern Munich", "Bochum", "Borussia Dortmund", "Borussia M'gladbach", "Darmstadt", "Eintracht Frankfurt", "FC Koln", "Freiburg", "Heidenheim", "Hoffenheim", "Mainz", "RB Leipzig", "Stuttgart", "Union Berlin", "Werder Bremen", "Wolfsburg"];
+        } else if (league === "La Liga") {
+            clubs = ["Alaves", "Almeria", "Athletic Club", "Atletico Madrid", "Barcelona", "Cadiz", "Celta Vigo", "Getafe", "Girona", "Granada", "Las Palmas", "Mallorca", "Osasuna", "Rayo Vallecano", "Real Betis", "Real Madrid", "Real Sociedad", "Sevilla", "Valencia", "Villarreal"];
+        } else if (league === "Serie A") {
+            clubs = ["Atalanta", "Bologna", "Cagliari", "Empoli", "Fiorentina", "Frosinone", "Genoa", "Inter Milan", "Juventus", "Lazio", "Lecce", "AC Milan", "Monza", "Napoli", "Roma", "Salernitana", "Sassuolo", "Torino", "Udinese", "Verona"];
+        } else if (league === "Primeira Liga") {
+            clubs = ["Arouca", "Boavista", "Braga", "Casa Pia", "Chaves", "Estoril", "Famalicao", "Benfica", "Gil Vicente", "Porto", "Portimonense", "Rio Ave", "Sporting", "Moreirense", "Vizela", "Estrela", "Guimaraes", "Farense"];
+        } else if (league === "Ligue 1") {
+            clubs = ["Clermont", "Le Havre", "Lens", "Lille", "Lorient", "Lyon", "Marseille", "Metz", "Monaco", "Montpellier", "Nantes", "Nice", "PSG", "Reims", "Rennes", "Strasbourg", "Toulouse", "Brest"];
+        }
+
+        clubs.forEach(function(club) {
+            const option1 = document.createElement("option");
+            option1.value = club;
+            option1.text = club;
+            club1Select.appendChild(option1);
+
+            const option2 = document.createElement("option");
+            option2.value = club;
+            option2.text = club;
+            club2Select.appendChild(option2);
+        });
+    }
+
+    leagueSelect.addEventListener("change", function() {
+        fillClubSelects(leagueSelect.value);
+    });
+
+    club1Select.addEventListener("change", function() {
+        const selectedClub1 = club1Select.value;
+        Array.from(club2Select.options).forEach(function(option) {
+            option.disabled = (option.value === selectedClub1);
+        });
+        if (club2Select.value === selectedClub1) {
+            club2Select.value = "";
+        }
+    });
+
+    fillClubSelects(leagueSelect.value);
+
+    predictionForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const selectedSeason = document.getElementById('season').value;
+        const selectedLeague = leagueSelect.value;
+        const selectedClub1 = club1Select.value;
+        const selectedClub2 = club2Select.value;
+
+        urlFormContainer.style.display = 'flex';
+        errorMessage.style.display = 'none';
+        predictionArea.style.display = 'none';
+        validationFormContainer.style.display = 'none';
+
+        const requestData = {
+            season: parseInt(selectedSeason),
+            league: selectedLeague,
+            club1: selectedClub1,
+            club2: selectedClub2
+        };
+
+        fetch('/update_data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Dados atualizados com sucesso:', data);
+            // Não exibir a área de previsão ainda
+        })
+        .catch(error => {
+            console.error('Erro ao atualizar os dados:', error);
+            showAlert('Ocorreu um erro ao atualizar os dados. Por favor, tente novamente.');
+        });
+    });
+
+
+
+
+    urlForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const oddsUrl = document.getElementById('oddsUrl').value;
+
+        if (!oddsUrl.includes('oddsportal.com')) {
+            showAlert('Por favor, insira um URL válido do OddsPortal.');
+            return;
+        }
+
+        errorMessage.style.display = 'none';
+        loader.style.display = 'block';
+
+        const requestData = { url: oddsUrl };
+
+        fetch('/fetch_odds', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(requestData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log("Dados recebidos:", data);
+            if (data.error) {
+                showAlert(data.error);
+            } else {
+                errorMessage.style.display = 'none';
+                urlFormContainer.style.display = 'none';
+                validationFormContainer.style.display = 'block';
+                loader.style.display = 'none';
+
+                const fields = ['B365H', 'B365D', 'B365A', 'BWH', 'BWD', 'BWA', 'MaxH', 'MaxD', 'MaxA', 'AvgH', 'AvgD', 'AvgA'];
+                fields.forEach((field, index) => {
+                    document.getElementById(field).value = data.odds[index];
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Erro ao obter as odds:', error);
+            showAlert('Ocorreu um erro ao obter as odds. Por favor, tente novamente.');
+        });
+    });
+
+    validationForm.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        // Suponha que os dados da validação sejam usados aqui para previsões
+        const validationData = {};
+        const fields = ['B365H', 'B365D', 'B365A', 'BWH', 'BWD', 'BWA', 'MaxH', 'MaxD', 'MaxA', 'AvgH', 'AvgD', 'AvgA'];
+        fields.forEach(field => {
+            validationData[field] = document.getElementById(field).value;
+        });
+          fetch('/save_validation_data', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(validationData)
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Dados de validação salvos com sucesso:', data);
+
+            // Exibir a área de previsão
+            predictionArea.style.display = 'block';
+            validationFormContainer.style.display = 'none';
+
+            // Aqui você pode adicionar o código para exibir as previsões geradas
+        })
+        .catch(error => {
+            console.error('Erro ao salvar os dados de validação:', error);
+            showAlert('Ocorreu um erro ao salvar os dados de validação. Por favor, tente novamente.');
+        });
+    });
+    function showAlert(message) {
+        alertMessage.innerText = message;
+        alertModal.style.display = "block";
+    }
+
+    spanClose.onclick = function() {
+        alertModal.style.display = "none";
+    }
+
+    window.onclick = function(event) {
+        if (event.target === alertModal) {
+            alertModal.style.display = "none";
+        }
+    }
+});
+   </script>
+</body>
+</html>

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sort Table Rows</title>
+    <link href="https://fonts.googleapis.com/css?family=Source+Sans+Pro:400,700" rel="stylesheet">
+    <style>
+        body {
+            padding: 24px;
+            font-family: 'Source Sans Pro', sans-serif;
+            margin: 0;
+        }
+
+        h1, h2, h3, h4, h5, h6 {
+            margin: 0;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin-right: auto;
+            margin-left: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+
+        .table {
+            width: 100%;
+            border: 1px solid #EEEEEE;
+        }
+
+        .table-header {
+            display: flex;
+            width: 100%;
+            background: #000;
+            padding: 12px 0;
+        }
+
+        .table-row {
+            display: flex;
+            width: 100%;
+            padding: 12px 0;
+
+            &:nth-of-type(odd) {
+                background: #EEEEEE;
+            }
+        }
+
+        .table-data, .header__item {
+            flex: 1 1 20%;
+            text-align: center;
+        }
+
+        .header__item {
+            text-transform: uppercase;
+            color: white;
+        }
+
+        .filter__link {
+            color: white;
+            text-decoration: none;
+            position: relative;
+            display: inline-block;
+            padding: 0 12px;
+
+            &::after {
+                content: '';
+                position: absolute;
+                right: -6px;
+                color: white;
+                font-size: 12px;
+                top: 50%;
+                transform: translateY(-50%);
+            }
+
+            &.desc::after {
+                content: '(desc)';
+            }
+
+            &.asc::after {
+                content: '(asc)';
+            }
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="table">
+        <div class="table-header">
+            <div class="header__item"><a id="homeTeam" class="filter__link" href="#">HomeTeam</a></div>
+            <div class="header__item"><a id="awayTeam" class="filter__link filter__link--number" href="#">AwayTeam</a></div>
+            <div class="header__item"><a id="ftr" class="filter__link filter__link--number" href="#">FTR</a></div>
+            <div class="header__item"><a id="b365h" class="filter__link filter__link--number" href="#">B365H</a></div>
+            <div class="header__item"><a id="b365d" class="filter__link filter__link--number" href="#">B365D</a></div>
+            <div class="header__item"><a id="b365a" class="filter__link filter__link--number" href="#">B365A</a></div>
+        </div>
+        <div class="table-content">
+            <!-- Table rows will be dynamically added here -->
+        </div>
+    </div>
+</div>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    $(document).ready(function () {
+        // Load data from CSV files
+        $.ajax({
+            type: "GET",
+            url: "C:\\Users\\smash\\PycharmProjects\\website\\OppGames.csv",
+            dataType: "text",
+            success: function (data) {
+                processData(data);
+            }
+        });
+        $.ajax({
+            type: "GET",
+            url: "C:\\Users\\smash\\PycharmProjects\\website\\TeamGames.csv", // Atualize o caminho para TeamGames.csv
+            dataType: "text",
+            success: function (data) {
+                processData(data);
+            }
+        });
+        // Function to process CSV data
+        function processData(allText) {
+            var allLines = allText.split(/\r\n|\n/);
+            var headers = allLines[0].split(',');
+            var tableContent = $('.table-content');
+
+            for (var i = 1; i < allLines.length; i++) {
+                var data = allLines[i].split(',');
+                if (data.length == headers.length) {
+                    var row = $('<div class="table-row"></div>');
+                    for (var j = 0; j < headers.length; j++) {
+                        row.append('<div class="table-data">' + data[j] + '</div>');
+                    }
+                    tableContent.append(row);
+                }
+            }
+        }
+    });
+</script>
+</body>
+</html>
