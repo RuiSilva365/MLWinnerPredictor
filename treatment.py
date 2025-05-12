@@ -1,441 +1,475 @@
-from datetime import datetime
-from telnetlib import EC
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.chrome.service import Service as ChromeService
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.support import expected_conditions
 import pandas as pd
+import numpy as np
+import logging
+from typing import Optional
+from datetime import datetime
 import url
-#VARIAVEIS DO CSV
-# Div: Divisão da liga (por exemplo, E0 para a Premier League da Inglaterra, SP1 para La Liga da Espanha).
-# Date: Data da partida.
-# Time: Hora da partida.
-# HomeTeam: Time da casa.
-# AwayTeam: Time visitante.
-# FTHG: Gols marcados pelo time da casa (em tempo integral).
-# FTAG: Gols marcados pelo time visitante (em tempo integral).
-# FTR: Resultado em tempo integral (H para casa, A para fora, D para empate).
-# HTHG: Gols marcados pelo time da casa (no intervalo).
-# HTAG: Gols marcados pelo time visitante (no intervalo).
-# HTR: Resultado no intervalo (H para casa, A para fora, D para empate).
-# HS: Chutes do time da casa.
-# AS: Chutes do time visitante.
-# HST: Chutes no alvo do time da casa.
-# AST: Chutes no alvo do time visitante.
-# HF: Faltas cometidas pelo time da casa.
-# AF: Faltas cometidas pelo time visitante.
-# HC: Chutes de canto do time da casa.
-# AC: Chutes de canto do time visitante.
-# HY: Cartões amarelos do time da casa.
-# AY: Cartões amarelos do time visitante.
-# HR: Cartões vermelhos do time da casa.
-# AR: Cartões vermelhos do time visitante.
-# B365H: Cotações da Bet365 para a vitória do time da casa.
-# B365D: Cotações da Bet365 para o empate.
-# B365A: Cotações da Bet365 para a vitória do time visitante.
-# BWH: Cotações da BetWay para a vitória do time da casa.
-# BWD: Cotações da BetWay para o empate.
-# BWA: Cotações da BetWay para a vitória do time visitante.
-# IWH: Cotações da Interwetten para a vitória do time da casa.
-# IWD: Cotações da Interwetten para o empate.
-# IWA: Cotações da Interwetten para a vitória do time visitante.
-# PSH: Cotações da Pinnacle Sports para a vitória do time da casa.
-# PSD: Cotações da Pinnacle Sports para o empate.
-# PSA: Cotações da Pinnacle Sports para a vitória do time visitante.
-# WHH: Cotações da William Hill para a vitória do time da casa.
-# WHD: Cotações da William Hill para o empate.
-# WHA: Cotações da William Hill para a vitória do time visitante.
-# VCH: Cotações da VC Bet para a vitória do time da casa.
-# VCD: Cotações da VC Bet para o empate.
-# VCA: Cotações da VC Bet para a vitória do time visitante.
-# MaxH: Cotações máximas para a vitória do time da casa.
-# MaxD: Cotações máximas para o empate.
-# MaxA: Cotações máximas para a vitória do time visitante.
-# AvgH: Cotações médias para a vitória do time da casa.
-# AvgD: Cotações médias para o empate.
-# AvgA: Cotações médias para a vitória do time visitante.
-# B365>2.5: Cotações da Bet365 para Mais de 2.5 gols.
-# B365<2.5: Cotações da Bet365 para Menos de 2.5 gols.
-# P>2.5: Probabilidades implícitas para Mais de 2.5 gols.
-# P<2.5: Probabilidades implícitas para Menos de 2.5 gols.
-# Max>2.5: Cotações máximas para Mais de 2.5 gols.
-# Max<2.5: Cotações máximas para Menos de 2.5 gols.
-# Avg>2.5: Cotações médias para Mais de 2.5 gols.
-# Avg<2.5: Cotações médias para Menos de 2.5 gols.
-# AHh: Handicap asiático.
-# B365AHH: Cotações da Bet365 para Handicap asiático da equipe da casa.
-# B365AHA: Cotações da Bet365 para Handicap asiático da equipe visitante.
-# PAHH: Probabilidades implícitas para Handicap asiático da equipe da casa.
-# PAHA: Probabilidades implícitas para Handicap asiático da equipe visitante.
-# MaxAHH: Cotações máximas para Handicap asiático da equipe da casa.
-# MaxAHA: Cotações máximas para Handicap asiático da equipe visitante.
-# AvgAHH: Cotações médias para Handicap asiático da equipe da casa.
-# AvgAHA: Cotações médias para Handicap asiático da equipe visitante.
-# B365CH: Cotações da Bet365 para vitória da equipe da casa (com handicap).
-# B365CD: Cotações da Bet365 para empate (com handicap).
-# B365CA: Cotações da Bet365 para vitória da equipe visitante (com handicap).
-# BWCH: Cotações da BetWay para vitória da equipe da casa (com handicap).
-# BWCD: Cotações da BetWay para empate (com handicap).
-# BWCA: Cotações da BetWay para vitória da equipe visitante (com handicap).
-# IWCH: Cotações da Interwetten para vitória da equipe da casa (com handicap).
-# IWCD: Cotações da Interwetten para empate (com handicap).
-# IWCA: Cotações da Interwetten para vitória da equipe visitante (com handicap).
-# PSCH: Cotações da Pinnacle Sports para vitória da equipe da casa (com handicap).
-# PSCD: Cotações da Pinnacle Sports para empate (com handicap).
-# PSCA: Cotações da Pinnacle Sports para vitória da equipe visitante (com handicap).
-# WHCH: Cotações da William Hill para vitória da equipe da casa (com handicap).
-# WHCD: Cotações da William Hill para empate (com handicap).
-# WHCA: Cotações da William Hill para vitória da equipe visitante (com handicap).
-# VCCH: Cotações da VC Bet para vitória da equipe da casa (com handicap).
-# VCCD: Cotações da VC Bet para empate (com handicap).
-# VCCA: Cotações da VC Bet para vitória da equipe visitante (com handicap).
-# MaxCH: Cotações máximas para vitória da equipe da casa (com handicap).
-# MaxCD: Cotações máximas para empate (com handicap).
-# MaxCA: Cotações máximas para vitória da equipe visitante (com handicap).
-# AvgCH: Cotações médias para vitória da equipe da casa (com handicap).
-# AvgCD: Cotações médias para empate (com handicap).
-# AvgCA: Cotações médias para vitória da equipe visitante (com handicap).
-# B365C>2.5: Cotações da Bet365 para vitória da equipe da casa (com mais de 2.5 gols).
-# B365C<2.5: Cotações da Bet365 para vitória da equipe da casa (com menos de 2.5 gols).
-# PC>2.5: Probabilidades implícitas para vitória da equipe da casa (com mais de 2.5 gols).
-# PC<2.5: Probabilidades implícitas para vitória da equipe da casa (com menos de 2.5 gols).
-# MaxC>2.5: Cotações máximas para vitória da equipe da casa (com mais de 2.5 gols).
-# MaxC<2.5: Cotações máximas para vitória da equipe da casa (com menos de 2.5 gols).
-# AvgC>2.5: Cotações médias para vitória da equipe da casa (com mais de 2.5 gols).
-# AvgC<2.5: Cotações médias para vitória da equipe da casa (com menos de 2.5 gols).
-# AHCh: Handicap asiático para a equipe da casa.
-# B365CAHH: Cotações da Bet365 para Handicap asiático da equipe da casa.
-# B365CAHA: Cotações da Bet365 para Handicap asiático da equipe visitante.
-# PCAHH: Probabilidades implícitas para Handicap asiático da equipe da casa.
-# PCAHA: Probabilidades implícitas para Handicap asiático da equipe visitante.
-# MaxCAHH: Cotações máximas para Handicap asiático da equipe da casa.
-# MaxCAHA: Cotações máximas para Handicap asiático da equipe visitante.
-# AvgCAHH: Cotações médias para Handicap asiático da equipe da casa.
-# AvgCAHA: Cotações médias para Handicap asiático da equipe visitante.
+try:
+    from tenacity import retry, stop_after_attempt, wait_fixed # type: ignore
+except ImportError:
+    retry = lambda func: func  # Fallback if tenacity is not installed
+
+# Configure logging for production
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
+def validate_club(club, league):
+    """Validate if a club exists in the specified league."""
+    if league not in url.clubs_by_league or club not in url.clubs_by_league[league]:
+        return False
+    return True
 
 def handler(season, star_league, star_club, opp_club):
+    """
+    Process historical match data for two clubs and save to CSV.
+    
+    Args:
+        season (int): Starting season (e.g., 2023 for 2023/2024).
+        star_league (str): League name (e.g., 'Premier League').
+        star_club (str): Main club to analyze.
+        opp_club (str): Opponent club to analyze.
+    
+    Returns:
+        str: Error message if any, else None.
+    """
     pd.set_option('display.max_columns', None)
-    columns_remove = ['PSD', 'PSA']
-
-    dfs_club = []  # List to hold DataFrames for the star club
-    dfs_opp = []  # List to hold DataFrames for the opponent club
-
-    # Converte a temporada para inteiro
+    
+    # Validate inputs
+    if not validate_club(star_club, star_league):
+        return f"Error: {star_club} not found in {star_league}"
+    if not validate_club(opp_club, star_league):
+        return f"Error: {opp_club} not found in {star_league}"
+    
+    if star_league not in url.file_path_leagues:
+        return f"Error: League {star_league} not supported"
+    
     var_firstseason = int(season)
-    var_lastseason = 2324
-
-    if star_league in url.file_path_leagues:
-        csvs_path = url.file_path_builder(star_league, var_firstseason, var_lastseason)
-
-        for path in csvs_path:
-            df = cut_useless_rows(path)
-
-            # Processando para star_club
-            df_club = filter_club_games(star_club, df)
+    var_lastseason = 2425  # Fixed to 2024/2025
+    csvs_path = url.file_path_builder(star_league, var_firstseason, var_lastseason)
+    
+    if not csvs_path:
+        return f"Error: No CSV files found for {star_league} between {var_firstseason} and {var_lastseason}"
+    
+    dfs_club = []
+    dfs_opp = []
+    
+    for path in csvs_path:
+        df = cut_useless_rows(path)
+        if df is None:
+            return f"Error: Failed to process CSV at {path}"
+        
+        # Filter games for each club
+        df_club = filter_club_games(star_club, df)
+        df_opp = filter_club_games(opp_club, df)
+        
+        if df_club is not None and not df_club.empty:
             dfs_club.append(df_club)
-
-            # Processando para opp_club
-            df_opp = filter_club_games(opp_club, df)
+        if df_opp is not None and not df_opp.empty:
             dfs_opp.append(df_opp)
+    
+    if not dfs_club or not dfs_opp:
+        return f"Error: No games found for {star_club} or {opp_club}"
+    
+    # Concatenate and save
+    df_club_concatenated = pd.concat(dfs_club)
+    df_opp_concatenated = pd.concat(dfs_opp)
+    
+    df_club_concatenated.to_csv("TeamGames.csv", index=False)
+    df_opp_concatenated.to_csv("OppGames.csv", index=False)
+    
+    return None
 
-        # Concatenate all DataFrames
-        df_club_concatenated = pd.concat(dfs_club)
-        df_opp_concatenated = pd.concat(dfs_opp)
-
-        # Save to CSV
-        df_club_concatenated.to_csv("TeamGames.csv", index=False)
-        df_opp_concatenated.to_csv("OppGames.csv", index=False)
-
-        return None  # No error message
-    else:
-        return 404
-
-
-#fazer o drop dos NaN e de colunas que não se vai usar
 def cut_useless_rows(file):
-    # Ler o arquivo CSV
-    df = pd.read_csv(file,index_col=0)
-
-    if df is None:
-        print("Erro: DataFrame de entrada é nulo.")
+    """
+    Process a CSV file to keep only relevant columns and add day of week.
+    
+    Args:
+        file (str): URL or path to the CSV file.
+    
+    Returns:
+        pandas.DataFrame: Processed DataFrame, or None if error.
+    """
+    try:
+        df = pd.read_csv(file)
+    except Exception as e:
+        logger.error(f"Error reading CSV {file}: {e}")
         return None
-
-    # Remover linhas com valores nulos
-    df.dropna(inplace=True)
-
-    # Lista de colunas a serem mantidas
-    columns_to_keep = ['Date',  'HomeTeam', 'AwayTeam', 'FTHG', 'FTAG',
-                       'FTR', 'B365H', 'B365D', 'B365A', 'BWH', 'BWD', 'BWA', 'MaxH', 'MaxD', 'MaxA', 'AvgH',
-                        'AvgD', 'AvgA', 'B365>2.5', 'B365<2.5', 'Max>2.5',
-                       'Max<2.5', 'Max>2.5', 'Avg<2.5', 'Avg>2.5']
-
-    # Verifica se as colunas a serem mantidas existem no DataFrame
+    
+    columns_to_keep = [
+        'Date', 'HomeTeam', 'AwayTeam', 'FTHG', 'FTAG', 'FTR',
+        'B365H', 'B365D', 'B365A', 'BWH', 'BWD', 'BWA',
+        'MaxH', 'MaxD', 'MaxA', 'AvgH', 'AvgD', 'AvgA',
+        'B365>2.5', 'B365<2.5', 'Max<2.5', 'Max>2.5',
+        'Avg<2.5', 'Avg>2.5'
+    ]
+    
     missing_columns = [col for col in columns_to_keep if col not in df.columns]
     if missing_columns:
+        logger.error(f"Missing columns in {file}: {', '.join(missing_columns)}")
         return None
-
-    # Selecionar apenas as colunas desejadas
-    df_selected = df[columns_to_keep].copy()  # Create a copy to avoid SettingWithCopyWarning
-
-    # Adicionar a coluna 'Dia_da_Semana' usando .loc para evitar SettingWithCopyWarning
-    df_selected.loc[:, 'Dia_da_Semana'] = df_selected['Date'].apply(getDayofWeek)
-
-    # Retorna o DataFrame modificado
+    
+    df_selected = df[columns_to_keep].copy()
+    
+    # Drop NaN rows after filtering relevant columns
+    df_selected = df_selected.dropna()
+    
+    # Add day of week
+    try:
+        df_selected['WeekDay'] = df_selected['Date'].apply(get_day_of_week)
+    except ValueError as e:
+        logger.error(f"Error processing dates in {file}: {e}")
+        return None
+    
     return df_selected
-#filtrar os jogos de um clube especifico
-def filter_club_games(var_club_name, df):
-    if df is None:  # Adicionei essa verificação para evitar erros quando o DataFrame é None
-        return None
-    df = df.loc[(df['HomeTeam'] == var_club_name) | (df['AwayTeam'] == var_club_name)]
-    return df
 
-#função para ver como estão os nomes das equipas nos csvs
-def filter_clubs_names():
-    df = pd.read_csv("https://www.football-data.co.uk/mmz4281/2324/I1.csv")
-    club_names = df['HomeTeam'].unique()
-    for name in club_names:
-        print(name)
+def add_FTRodds_feedback(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add a column 'FTRodds_feedback' indicating if the favorite outcome (based on MaxH, MaxD, MaxA, AvgH, AvgD, AvgA)
+    matches the actual outcome (FTR). Uses vectorized operations for performance.
+
+    Args:
+        df (pandas.DataFrame): Input DataFrame with 'FTR', 'MaxH', 'MaxD', 'MaxA', 'AvgH', 'AvgD', 'AvgA' columns.
+
+    Returns:
+        pandas.DataFrame: DataFrame with new 'FTRodds_feedback' column ('True', 'False', or 'NA').
+
+    Raises:
+        ValueError: If required columns are missing.
+    """
+    try:
+        # Validate input
+        required_cols = ['FTR', 'MaxH', 'MaxD', 'MaxA', 'AvgH', 'AvgD', 'AvgA']
+        if df is None or df.empty or not all(col in df.columns for col in required_cols):
+            logger.warning("Invalid DataFrame or missing required columns for FTRodds_feedback")
+            return df
+
+        # Initialize output column
+        df['FTRodds_feedback'] = 'NA'
+
+        # Filter valid rows (non-NaN odds and valid FTR)
+        valid = (~df[required_cols[1:]].isna().any(axis=1)) & (df['FTR'].isin(['H', 'A', 'D']))
+
+        if valid.any():
+            # Vectorized computation of minimum odds and favorites
+            odds = df.loc[valid, ['MaxH', 'MaxD', 'MaxA', 'AvgH', 'AvgD', 'AvgA']]
+            min_odds = odds.min(axis=1)
+            
+            # Determine favorite outcomes (columns where odds equal min_odds)
+            favorites = odds.eq(min_odds, axis=0).apply(
+                lambda x: [k[-1] for k in x.index[x] if k.startswith(('Max', 'Avg'))], axis=1
+            )
+            
+            # Check if FTR is in favorites
+            df.loc[valid, 'FTRodds_feedback'] = df.loc[valid, 'FTR'].combine(
+                favorites, lambda ftr, fav: str(ftr in fav)
+            )
+
+        logger.info("Successfully added FTRodds_feedback column")
+        return df
+
+    except Exception as e:
+        logger.error(f"Error in add_FTRodds_feedback: {str(e)}")
+        raise
+
+def add_Goalsodds_feedback(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add a column 'Goalsodds_feedback' indicating if the favorite outcome for total goals (over/under 2.5, based on
+    Max>2.5, Max<2.5, Avg>2.5, Avg<2.5) matches the actual total goals (FTHG + FTAG). Uses vectorized operations.
+
+    Args:
+        df (pandas.DataFrame): Input DataFrame with 'FTHG', 'FTAG', 'Max>2.5', 'Max<2.5', 'Avg>2.5', 'Avg<2.5' columns.
+
+    Returns:
+        pandas.DataFrame: DataFrame with new 'Goalsodds_feedback' column ('True', 'False', or 'NA').
+
+    Raises:
+        ValueError: If required columns are missing.
+    """
+    try:
+        # Validate input
+        required_cols = ['FTHG', 'FTAG', 'Max>2.5', 'Max<2.5', 'Avg>2.5', 'Avg<2.5']
+        if df is None or df.empty or not all(col in df.columns for col in required_cols):
+            logger.warning("Invalid DataFrame or missing required columns for Goalsodds_feedback")
+            return df
+
+        # Initialize output column
+        df['Goalsodds_feedback'] = 'NA'
+
+        # Filter valid rows (non-NaN goals and odds)
+        valid = (~df[required_cols].isna().any(axis=1))
+
+        if valid.any():
+            # Calculate total goals and actual outcome
+            total_goals = df.loc[valid, 'FTHG'] + df.loc[valid, 'FTAG']
+            actual_outcome = np.where(total_goals > 2.5, 'Over', 'Under')
+
+            # Vectorized computation of minimum odds and favorites
+            odds = df.loc[valid, ['Max>2.5', 'Max<2.5', 'Avg>2.5', 'Avg<2.5']]
+            min_odds = odds.min(axis=1)
+
+            # Map odds columns to outcomes
+            outcome_map = {'Max>2.5': 'Over', 'Avg>2.5': 'Over', 'Max<2.5': 'Under', 'Avg<2.5': 'Under'}
+            favorites = odds.eq(min_odds, axis=0).apply(
+                lambda x: [outcome_map[k] for k in x.index[x]], axis=1
+            )
+
+            # Check if actual outcome is in favorites
+            df.loc[valid, 'Goalsodds_feedback'] = [
+                str(outcome in favs) for outcome, favs in zip(actual_outcome, favorites)
+            ]
+
+        logger.info("Successfully added Goalsodds_feedback column")
+        return df
+
+    except Exception as e:
+        logger.error(f"Error in add_Goalsodds_feedback: {str(e)}")
+        raise
+
+def add_total_goals_column(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Add a column 'TotalGoals' by summing FTHG and FTAG columns.
+
+    Args:
+        df (pandas.DataFrame): Input DataFrame with 'FTHG' and 'FTAG' columns.
+
+    Returns:
+        pandas.DataFrame: DataFrame with new 'TotalGoals' column (numeric or NaN).
+
+    Raises:
+        ValueError: If required columns are missing or contain non-numeric data.
+    """
+    try:
+        # Validate input
+        required_cols = ['FTHG', 'FTAG']
+        if df is None or df.empty or not all(col in df.columns for col in required_cols):
+            logger.warning("Invalid DataFrame or missing required columns for TotalGoals")
+            return df
+
+        # Check for numeric data
+        if not all(df[col].dtype.kind in 'iuf' for col in required_cols):
+            logger.error("FTHG and FTAG must be numeric")
+            raise ValueError("FTHG and FTAG must be numeric")
+
+        # Calculate total goals (vectorized)
+        df['TotalGoals'] = df['FTHG'] + df['FTAG']
+
+        # Set NaN for rows with missing FTHG or FTAG
+        df.loc[df[required_cols].isna().any(axis=1), 'TotalGoals'] = np.nan
+
+        logger.info("Successfully added TotalGoals column")
+        return df
+
+    except Exception as e:
+        logger.error(f"Error in add_total_goals_column: {str(e)}")
+        raise
+
+def filter_club_games(var_club_name, df):
+    """
+    Filter games for a specific club (home or away).
+    
+    Args:
+        var_club_name (str): Name of the club.
+        df (pandas.DataFrame): Input DataFrame.
+    
+    Returns:
+        pandas.DataFrame: Filtered DataFrame, or None if error.
+    """
+    if df is None or df.empty:
+        return None
+    return df.loc[(df['HomeTeam'] == var_club_name) | (df['AwayTeam'] == var_club_name)].copy()
+
+def filter_clubs_names(file="https://www.football-data.co.uk/mmz4281/2324/I1.csv"):
+    """
+    Print unique club names from a CSV file.
+    
+    Args:
+        file (str): URL or path to the CSV file.
+    """
+    try:
+        df = pd.read_csv(file)
+        club_names = df['HomeTeam'].unique()
+        for name in sorted(club_names):
+            logger.info(name)
+    except Exception as e:
+        logger.error(f"Error reading club names from {file}: {e}")
 
 def finalscore_and_teams(df):
-    # Seleciona apenas as colunas desejadas
+    """
+    Extract teams and final scores from a DataFrame.
+    
+    Args:
+        df (pandas.DataFrame): Input DataFrame.
+    
+    Returns:
+        pandas.DataFrame: DataFrame with teams and scores.
+    """
+    if df is None or df.empty:
+        return None
     selected_columns = ['HomeTeam', 'AwayTeam', 'FTHG', 'FTAG']
-    new_df = df[selected_columns].copy()
-    return new_df
+    return df[selected_columns].copy()
 
 def data_treatmentP(file):
-    df = pd.read_csv(file)
-    if df is None:
-        print("Erro: DataFrame de entrada é nulo.")
+    """
+    Process a CSV file by removing unnecessary columns.
+    
+    Args:
+        file (str): URL or path to the CSV file.
+    
+    Returns:
+        pandas.DataFrame: Processed DataFrame, or None if error.
+    """
+    try:
+        df = pd.read_csv(file)
+    except Exception as e:
+        logger.error(f"Error reading CSV {file}: {e}")
         return None
-    df.dropna(inplace=True)
+    
     columns_to_remove = [
-        'Div', 'FTR', 'HTAG', 'HTR', 'HS', 'AS', 'HST', 'AST', 'HF', 'AF', 'HC', 'AC', 'HY',
-        'AY',
-        'HR', 'AR', 'IWH', 'IWD', 'IWA', 'PSH', 'PSD', 'PSA', 'WHH', 'WHD', 'WHA', 'VCH', 'VCD', 'VCA', 'B365AHH', 'B365AHA',
-        'PAHH', 'PAHA', 'MaxAHH', 'MaxAHA', 'AvgAHH', 'AvgAHA',  'B365AHH',
-        'B365AHA', 'PAHH', 'PAHA', 'MaxAHH', 'MaxAHA', 'AvgAHH', 'AvgAHA', 'B365CH', 'B365CD', 'B365CA', 'BWCH', 'BWCD',
-        'BWCA', 'IWCH', 'IWCD', 'IWCA', 'PSCH', 'PSCD', 'PSCA', 'WHCH', 'WHCD', 'WHCA', 'VCCH', 'VCCD', 'VCCA'
+        'Div', 'FTR', 'HTAG', 'HTR', 'HS', 'AS', 'HST', 'AST', 'HF', 'AF', 'HC', 'AC', 'HY', 'AY',
+        'HR', 'AR', 'IWH', 'IWD', 'IWA', 'PSH', 'PSD', 'PSA', 'WHH', 'WHD', 'WHA', 'VCH', 'VCD', 'VCA',
+        'B365AHH', 'B365AHA', 'PAHH', 'PAHA', 'MaxAHH', 'MaxAHA', 'AvgAHH', 'AvgAHA', 'B365CH', 'B365CD',
+        'B365CA', 'BWCH', 'BWCD', 'BWCA', 'IWCH', 'IWCD', 'IWCA', 'PSCH', 'PSCD', 'PSCA', 'WHCH', 'WHCD',
+        'WHCA', 'VCCH', 'VCCD', 'VCCA'
     ]
-    # Verifica se as colunas a serem removidas existem no DataFrame
+    
     missing_columns = [col for col in columns_to_remove if col not in df.columns]
     if missing_columns:
-        print(f"Erro: As seguintes colunas não existem no DataFrame: {', '.join(missing_columns)}")
+        logger.warning(f"Columns not found in DataFrame: {', '.join(missing_columns)}")
+    
+    df = df.drop(columns=[col for col in columns_to_remove if col in df.columns], errors='ignore')
+    df = df.dropna()
+    
+    return df
+
+def get_date(df_team):
+    """
+    Extract dates from a DataFrame.
+    
+    Args:
+        df_team (pandas.DataFrame): Input DataFrame.
+    
+    Returns:
+        pandas.Series: Series of dates.
+    """
+    if df_team is None or 'Date' not in df_team.columns:
+        return None
+    return df_team['Date']
+
+def treatment_of_date(df):
+    """
+    Convert dates and extract day, month, and day of week.
+    
+    Args:
+        df (pandas.DataFrame): Input DataFrame.
+    
+    Returns:
+        pandas.DataFrame: Processed DataFrame.
+    """
+    if df is None or 'Date' not in df.columns:
+        return df
+    
+    # Try multiple date formats
+    date_formats = ['%d/%m/%Y', '%d/%m/%y', '%Y-%m-%d']
+    for fmt in date_formats:
+        try:
+            df['Date'] = pd.to_datetime(df['Date'], format=fmt, dayfirst=True)
+            break
+        except ValueError:
+            continue
+    else:
+        logger.warning("Could not parse dates")
+        return df
+    
+    df['Day'] = df['Date'].dt.day
+    df['Month'] = df['Date'].dt.month
+    df['Year'] = df['Date'].dt.year
+    df['Day_of_week'] = df['Date'].dt.dayofweek
+    df = df.drop(columns=['Date'])
+    
+    return df
+
+def get_day_of_week(date_str):
+    """
+    Get the day of the week (0=Mon, 6=Sun) from a date string.
+    
+    Args:
+        date_str (str): Date string.
+    
+    Returns:
+        int: Day of the week number.
+    """
+    try:
+        date_formats = ['%d/%m/%Y', '%d/%m/%y', '%Y-%m-%d']
+        for fmt in date_formats:
+            try:
+                date_obj = datetime.strptime(date_str, fmt)
+                return date_obj.weekday()
+            except ValueError:
+                continue
+        return None
+    except Exception as e:
+        logger.error(f"Error parsing date {date_str}: {e}")
         return None
 
-    # Drop das colunas
-    df.drop(columns=columns_to_remove, inplace=True)
-
-    # Retorna o DataFrame modificado
-    return df
-
-
-def getDate(df_team):
-    game_date = df_team["Date"]
-    return game_date
-
-def treatmentofDate(df):
-    if 'Date' in df.columns:
-        df['Date'] = pd.to_datetime(df['Date'], format='%d/%m/%Y', dayfirst=True)
-
-        # Extract day, month, and day of the week into new columns
-        df['Day'] = df['Date'].dt.day
-        df['Month'] = df['Date'].dt.month
-        df['Day_of_week'] = df['Date'].dt.dayofweek  # 0 for Monday, 1 for Tuesday, etc.
-
-        # Remove the original "Date" column
-        df.drop(columns=['Date'], inplace=True)
-    return df
-def getDayofWeek(data):
-    # Converter a string de data para um objeto datetime
-    data_object = datetime.strptime(data, '%d/%m/%Y')  # Usar '%d/%m/%Y' para ano com quatro dígitos
-
-    # Obter o dia da semana como um número (0 = segunda-feira, 1 = terça-feira, ..., 6 = domingo)
-    day_of_the_week_num = data_object.weekday()
-
-    # Mapear o número do dia da semana para o nome do dia
-    #week_days = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado', 'Domingo']
-    #week_day_name = week_days[day_of_the_week_num]
-
-    return day_of_the_week_num
-
-
 def replace_club_names_with_indices(df, star_club, opp_club):
-    # Carregar o DataFrame a partir do arquivo CSV
+    """
+    Replace club names with indices (99 for star_club, 98 for opp_club, others from url.clubs_by_league).
+    
+    Args:
+        df (pandas.DataFrame): Input DataFrame.
+        star_club (str): Main club.
+        opp_club (str): Opponent club.
+    
+    Returns:
+        pandas.DataFrame: DataFrame with indices.
+    """
+    if df is None or df.empty:
+        return df
+    
     reverse_clubs = {}
     for league, clubs in url.clubs_by_league.items():
         for idx, club in enumerate(clubs, start=1):
             reverse_clubs[club] = idx
-
-    # Substituindo os nomes dos clubes pelos índices
-    df["HomeTeam"] = df["HomeTeam"].apply(lambda x: 99.0 if x == star_club else (98.0 if x == opp_club else reverse_clubs.get(x)))
-    df["AwayTeam"] = df["AwayTeam"].apply(lambda x: 99.0 if x == star_club else (98.0 if x == opp_club else reverse_clubs.get(x)))
+    
+    def map_club(club):
+        if club == star_club:
+            return 99.0
+        elif club == opp_club:
+            return 98.0
+        return reverse_clubs.get(club, 0.0)  # Default to 0.0 for unknown clubs
+    
+    df['HomeTeam'] = df['HomeTeam'].apply(map_club)
+    df['AwayTeam'] = df['AwayTeam'].apply(map_club)
+    
     return df
 
-
-
-
-def replace_ftr(df, selected_team):
-    # Mapear os valores da coluna "FTR" com base na equipe selecionada, 1se ganha 0 o resto
-    df['FTR'] = df.apply(lambda row: 1 if (row['FTR'] == 'H' and row['HomeTeam'] == selected_team) or
-                                          (row['FTR'] == 'A' and row['AwayTeam'] == selected_team) else 0, axis=1)
+def replace_ftr(df, selected_team, encoding='binary'):
+    """
+    Replace FTR column based on selected team outcomes.
+    
+    Args:
+        df (pandas.DataFrame): Input DataFrame.
+        selected_team (str): Selected team.
+        encoding (str): 'binary' (1=win, 0=other) or 'ternary' (1=win, 0=draw, 2=loss).
+    
+    Returns:
+        pandas.DataFrame: DataFrame with modified FTR.
+    """
+    if df is None or df.empty or 'FTR' not in df.columns:
+        return df
+    
+    if encoding == 'binary':
+        df['FTR'] = df.apply(
+            lambda row: 1 if (row['FTR'] == 'H' and row['HomeTeam'] == selected_team) or
+                             (row['FTR'] == 'A' and row['AwayTeam'] == selected_team) else 0,
+            axis=1
+        )
+    elif encoding == 'ternary':
+        df['FTR'] = df.apply(
+            lambda row: 1 if (row['FTR'] == 'H' and row['HomeTeam'] == selected_team) or
+                             (row['FTR'] == 'A' and row['AwayTeam'] == selected_team) else
+                        (2 if (row['FTR'] == 'H' and row['AwayTeam'] == selected_team) or
+                              (row['FTR'] == 'A' and row['HomeTeam'] == selected_team) else 0),
+            axis=1
+        )
     return df
-
-
-def replace_ftr3(df, selected_team):
-    # Map the values of the column "FTR" based on the selected team
-    # 1 = Victory for the selected team
-    # 0 = Draw
-    # 2 = Defeat for the selected team
-
-    df['FTR'] = df.apply(lambda row: 1 if (row['FTR'] == 'H' and row['HomeTeam'] == selected_team) or
-                                          (row['FTR'] == 'A' and row['AwayTeam'] == selected_team) else
-    (2 if (row['FTR'] == 'H' and row['AwayTeam'] == selected_team) or
-          (row['FTR'] == 'A' and row['HomeTeam'] == selected_team) else 0), axis=1)
-    return df
-def getNextgameData(url):
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-
-    # Initialize the WebDriver
-    driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
-
-    # Open the URL
-    driver.get(url)
-
-    # Initialize explicit wait
-    wait = WebDriverWait(driver, 20)
-    odds_data = {}
-
-    try:
-        # Wait for the page to load
-        wait.until(EC.presence_of_element_located((By.XPATH, "//body")))
-
-        # Click the reject all cookies button if present
-        try:
-            cookie_button = wait.until(
-                EC.element_to_be_clickable((By.XPATH, ".//button[@id='onetrust-reject-all-handler']")))
-            cookie_button.click()
-            print("Cookie reject button clicked.")
-        except:
-            print("Cookie reject button not found or already clicked.")
-
-        # Wait for the odds elements to be present
-        print("Waiting for the odds elements to be present...")
-        odds_elements = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//p[@class='height-content']")))
-
-        # Extract the text of each relevant odds element
-        odds_values = [element.text for element in odds_elements]
-        print(f"Odds values: {odds_values}")
-
-        # Map the odds values to their respective labels
-        if len(odds_values) >= 34:
-            odds_data = {
-                'B365H': odds_values[0],
-                'B365D': odds_values[1],
-                'B365A': odds_values[2],
-                'BWH': odds_values[3],
-                'BWD': odds_values[4],
-                'BWA': odds_values[5],
-                'MaxH': odds_values[31],
-                'MaxD': odds_values[32],
-                'MaxA': odds_values[33],
-                'AvgH': odds_values[27],
-                'AvgD': odds_values[28],
-                'AvgA': odds_values[29]
-            }
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        # Log page source for debugging
-        with open("page_source.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-
-    finally:
-        driver.quit()
-
-    return odds_data
-
-
-def transform_url(url):
-    # Verifica se o URL contém "1X2"
-    if "#1X2" in url:
-        # Divide o URL pela parte do marcador "#"
-        base_url, params = url.split("#")
-
-        # Extrai os componentes do parâmetro
-        match_params = params.split(";")
-        match_id = match_params[0]
-
-        # Cria o novo URL com o formato "over-under"
-        new_url = f"{base_url}#over-under;{match_id};2.50;0"
-        return new_url
-    else:
-        return url  # Retorna o URL original se não for do tipo "1X2"
-def getNextgameGoalsData(url):
-    url = transform_url(url)
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument('--headless')
-    chrome_options.add_argument('--no-sandbox')
-    chrome_options.add_argument('--disable-dev-shm-usage')
-
-    # Inicializar o WebDriver
-    driver = webdriver.Chrome(service=ChromeService(ChromeDriverManager().install()), options=chrome_options)
-
-    # Abrir o URL
-    driver.get(url)
-
-    # Inicializar espera explícita
-    wait = WebDriverWait(driver, 20)
-    odds_data = {}
-
-    try:
-        # Aguardar o carregamento da página
-        wait.until(EC.presence_of_element_located((By.XPATH, "//body")))
-
-        # Clicar no botão para rejeitar todos os cookies, se presente
-        try:
-            cookie_button = wait.until(EC.element_to_be_clickable((By.XPATH, ".//button[@id='onetrust-reject-all-handler']")))
-            cookie_button.click()
-            print("Cookie reject button clicked.")
-        except:
-            print("Cookie reject button not found or already clicked.")
-
-        # Esperar pelos elementos de odds estarem presentes
-        print("Waiting for the odds elements to be present...")
-        odds_elements = wait.until(EC.presence_of_all_elements_located((By.XPATH, "//p[@class='height-content']")))
-
-        # Extrair o texto de cada elemento de odds relevante
-        odds_values = [element.text for element in odds_elements]
-        print(f"Odds values: {odds_values}")
-
-        # Mapear os valores de odds para suas respectivas labels
-        if len(odds_values) >= 21:
-            odds_data = {
-                'B365>2.5': odds_values[0],
-                'B365<2.5': odds_values[1],
-                'Max<2.5': odds_values[9],
-                'Max>2.5': odds_values[10],
-                'Avg<2.5': odds_values[6],
-                'Avg>2.5': odds_values[8]
-            }
-
-
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        # Registrar o código fonte da página para depuração
-        with open("page_source.html", "w", encoding="utf-8") as f:
-            f.write(driver.page_source)
-
-    finally:
-        driver.quit()
-
-    return odds_data
-
-
-# getNexgameData('https://www.oddsportal.com/football/portugal/liga-portugal/braga-fc-porto-t4RTDzCR/#1X2;2')
-#transform_url('https://www.oddsportal.com/football/portugal/liga-portugal/braga-fc-porto-t4RTDzCR/#1X2;2')
