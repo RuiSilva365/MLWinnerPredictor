@@ -465,7 +465,7 @@ class NextGameScraper:
     except Exception as e:
         logger.error(f"Error saving CSV: {str(e)}")
 
-   def get_next_game_data(self, odds_url: str, star_club: str, opp_club: str, game_date: str, league: str = "Serie A") -> Dict[str, str]:
+   def get_next_game_data(self, odds_url: str, star_club: str, opp_club: str, game_date: str, league: str = "La Liga") -> Dict[str, str]:
        """Fetch 1X2 odds for the next game."""
        logger.info(f"Getting odds for {star_club} vs {opp_club} in {league}")
        
@@ -540,12 +540,26 @@ def get_scraper(api_key: str = "6521a8f852098babe8777208742ae518"):
        _SCRAPER_INSTANCE = NextGameScraper(api_key)
    return _SCRAPER_INSTANCE
 
+
+
 def get_next_game_data(odds_url: str, star_club: str = None, opp_club: str = None, game_date: str = None, league: str = "Serie A") -> Dict[str, str]:
    """Fetch 1X2 odds for the next game."""
+   # Check if any of the parameters is None and log it
+   if star_club is None or opp_club is None or game_date is None or league is None:
+       logger.warning(f"Missing parameters: star_club={star_club}, opp_club={opp_club}, game_date={game_date}, league={league}")
+       if game_date is None:
+           game_date = datetime.now().strftime("%d/%m/%Y")  # Default to today
+
    scraper = get_scraper()
    return scraper.get_next_game_data(odds_url, star_club, opp_club, game_date, league)
 
 def get_next_game_goals_data(odds_url: str, star_club: str = None, opp_club: str = None, game_date: str = None, league: str = "Serie A") -> Dict[str, str]:
    """Fetch over/under 2.5 goals odds for the next game and save to CSV."""
+   # Check if any of the parameters is None and log it
+   if star_club is None or opp_club is None or game_date is None or league is None:
+       logger.warning(f"Missing parameters: star_club={star_club}, opp_club={opp_club}, game_date={game_date}, league={league}")
+       if game_date is None:
+           game_date = datetime.now().strftime("%d/%m/%Y")  # Default to today
+   
    scraper = get_scraper()
    return scraper.get_next_game_goals_data(odds_url, star_club, opp_club, game_date, league)
