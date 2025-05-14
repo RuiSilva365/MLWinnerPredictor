@@ -306,4 +306,4 @@ def process_game_data(job_id: str, data: Dict[str, Any]) -> None:
         jobs[job_id]['error'] = str(e)
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)

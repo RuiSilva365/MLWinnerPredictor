@@ -9,6 +9,15 @@ import sys
 import os
 import urllib.parse
 import nextGameScrapping
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger(__name__)
 
 def test_python_api():
     """
@@ -33,7 +42,12 @@ def test_python_api():
         response = requests.get(f"{base_url}/leagues")
         if response.status_code == 200:
             leagues = response.json().get('leagues', [])
-            print(f"  Available leagues: {', '.join(leagues) if leagues else 'None'}")
+            if leagues:
+                print("  Available leagues:")
+                for i, league in enumerate(leagues, 1):
+                    print(f"    {i}. {league}")
+            else:
+                print("  No leagues available")
         else:
             print(f"  Error: {response.status_code} - {response.text}")
             return False
@@ -45,22 +59,36 @@ def test_python_api():
         print("  No leagues available. Check that the API is properly connected to the league data.")
         return False
     
-    # Find Serie A in the list of leagues
-    selected_league = str(input("Insert a league: "))
-    if selected_league not in leagues:
-        selected_league = leagues[0]  # Use the first league as fallback
-        print(f"  La Liga not found in leagues, using {selected_league} instead")
+    # Get league selection
+    selected_league = input("Insert a league name or number: ").strip()
+    try:
+        league_idx = int(selected_league) - 1
+        if 0 <= league_idx < len(leagues):
+            selected_league = leagues[league_idx]
+        else:
+            print(f"  Invalid league number, checking if '{selected_league}' is a valid league name")
+            if selected_league not in leagues:
+                selected_league = leagues[0]
+                print(f"  '{selected_league}' not found, using {leagues[0]} instead")
+    except ValueError:
+        if selected_league not in leagues:
+            selected_league = leagues[0]
+            print(f"  '{selected_league}' not found, using {leagues[0]} instead")
     
     # 2. Get teams for a league
     print(f"\n2. Getting teams for {selected_league}...")
-    # Properly encode the league parameter
     encoded_league = urllib.parse.quote(selected_league)
     
     try:
         response = requests.get(f"{base_url}/teams?league={encoded_league}")
         if response.status_code == 200:
             teams = response.json().get('teams', [])
-            print(f"  Available teams: {', '.join(teams[:5])}... (and {len(teams)-5} more)" if len(teams) > 5 else f"  Available teams: {', '.join(teams)}")
+            if teams:
+                print("  Available teams:")
+                for i, team in enumerate(teams, 1):
+                    print(f"    {i}. {team}")
+            else:
+                print("  No teams available")
         else:
             print(f"  Error: {response.status_code} - {response.text}")
             return False
@@ -72,17 +100,28 @@ def test_python_api():
         print("  Not enough teams available. Check the league data.")
         return False
     
-    # Try to find Atalanta and Roma in the list of teams
-    team1 =str(input("Insert the home Team: "))
-    team2 =str(input("Insert the away Team: "))
+    # Function to get team selection by name or index
+    def get_team_selection(prompt, teams):
+        while True:
+            selection = input(prompt).strip()
+            try:
+                idx = int(selection) - 1
+                if 0 <= idx < len(teams):
+                    return teams[idx]
+                print(f"  Invalid team number. Please enter a number between 1 and {len(teams)}")
+            except ValueError:
+                if selection in teams:
+                    return selection
+                print(f"  Team '{selection}' not found. Please enter a valid team name or number.")
     
-    if team1 not in teams:
-        team1 = teams[0]  # Use first team as fallback
-        print(f"  {team1} not found in teams, using {teams[0]} instead")
+    # Get team selections
+    team1 = get_team_selection("Insert the home team (name or number): ", teams)
+    team2 = get_team_selection("Insert the away team (name or number): ", teams)
     
-    if team2 not in teams:
-        team2 = teams[1]  # Use second team as fallback
-        print(f"  {team2} not found in teams, using {teams[1]} instead")
+    # Ensure different teams
+    while team1 == team2:
+        print("  Home and away teams cannot be the same!")
+        team2 = get_team_selection("Insert the away team (name or number): ", teams)
     
     # 3. Start a data processing job
     print(f"\n3. Starting data processing for {team1} vs {team2}...")
@@ -115,7 +154,7 @@ def test_python_api():
     
     # 4. Check job status until completed or error
     print("\n4. Checking job status...")
-    max_attempts = 20  # Increased number of attempts
+    max_attempts = 20
     attempt = 0
     status = "pending"
     
@@ -156,13 +195,13 @@ def test_python_api():
     # 5. Get team data
     print("\n5. Getting team1 data...")
     try:
-        response = requests.get(f"{base_url}/data/team?team=team1")
+        response = requests.get(f"{base_url}/data/team?team={urllib.parse.quote(team1)}")
         if response.status_code == 200:
             data_response = response.json()
             shape = data_response.get('shape', [0, 0])
             columns = data_response.get('columns', [])
             print(f"  DataFrame shape: {shape[0]} rows x {shape[1]} columns")
-            print(f"  Columns: {', '.join(columns[:5])}... (and {len(columns)-5} more)" if len(columns) > 5 else f"  Columns: {', '.join(columns)}")
+            print(f"  Columns: {', '.join(columns)}")
         else:
             print(f"  Error: {response.status_code} - {response.text}")
             return False
@@ -173,19 +212,35 @@ def test_python_api():
     # 6. Get next game data
     print("\n6. Getting next game data...")
     try:
-        odds_data = nextGameScrapping.get_next_game_data('', team1, team2, '',selected_league)
-        goals_data = nextGameScrapping.get_next_game_goals_data('', team1, team2, '',selected_league)
+        # Fetch odds and goals data using NextGameScraper
+        odds_data = nextGameScrapping.get_next_game_data('', team1, team2, '12/05/2025', selected_league)
+        goals_data = nextGameScrapping.get_next_game_goals_data('', team1, team2, '12/05/2025', selected_league)
 
+        # Check if odds data contains an error
+        if 'error' in odds_data:
+            print(f"  Error retrieving odds: {odds_data['error']}")
+        else:
+            print(f"  Odds retrieved: Home: {odds_data.get('B365H', 'N/A')}, "
+                  f"Draw: {odds_data.get('B365D', 'N/A')}, Away: {odds_data.get('B365A', 'N/A')}")
 
+        # Check if goals data contains an error
+        if 'error' in goals_data:
+            print(f"  Error retrieving goals odds: {goals_data['error']}")
+        else:
+            print(f"  Goals odds retrieved: Over 2.5: {goals_data.get('B365>2.5', 'N/A')}, "
+                  f"Under 2.5: {goals_data.get('B365<2.5', 'N/A')}")
+
+        # Try to get next game data from the API
         response = requests.get(f"{base_url}/data/next-game")
         if response.status_code == 200:
             data_response = response.json()
             data = data_response.get('data', [])
             if data:
                 print(f"  Next game: {data[0].get('HomeTeam')} vs {data[0].get('AwayTeam')}")
-                print(f"  Odds Home: {data[0].get('B365H')}, Draw: {data[0].get('B365D')}, Away: {data[0].get('B365A')}")
+                print(f"  Odds Home: {data[0].get('B365H', 'N/A')}, "
+                      f"Draw: {data[0].get('B365D', 'N/A')}, Away: {data[0].get('B365A', 'N/A')}")
             else:
-                print("  No next game data available.")
+                print("  No next game data available from API.")
         else:
             print(f"  Error: {response.status_code} - {response.text}")
             return False

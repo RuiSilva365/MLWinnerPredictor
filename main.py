@@ -75,9 +75,17 @@ def main():
     goals_data = nextGameScrapping.get_next_game_goals_data(odds_url, star_club, opp_club, game_date, league)
     print(f"1X2 Odds: {odds_data}")
     print(f"Goals Odds: {goals_data}")
-    
 
     prediction_df = pd.read_csv("NextGame.csv")
+
+
+
+    prediction_results = prediction.predict(
+            train_df=team_games, 
+            test_df=opp_games, 
+            pred_df=prediction_df
+        )
+    print("Prediction results:")    
 
 if __name__ == "__main__":
     main()
