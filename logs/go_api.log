@@ -1,3 +1,4 @@
 2025/05/14 17:00:27 Server started on :8080
-2025/05/14 17:00:27 listen tcp :8080: bind: address already in use
+signal: terminated
+ listen tcp :8080: bind: address already in use
 exit status 1

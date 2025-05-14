@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-# test_python_api.py
-# This script tests the Python API directly, bypassing the Go API
+# test_go_api.py
+# Tests the Go API running on the old laptop from a remote machine (e.g., Mac)
 
 import requests
 import json
@@ -10,6 +10,7 @@ import os
 import urllib.parse
 import nextGameScrapping
 import logging
+from datetime import datetime
 
 # Configure logging
 logging.basicConfig(
@@ -19,21 +20,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def test_python_api():
+def test_go_api():
     """
-    Test the Python API directly
+    Test the Go API running on the old laptop
     """
-    # Python API base URL
+    # Go API base URL (replace with your old laptop's IP)
     base_url = "http://192.168.1.130:8080"
     
-    print("Testing the Python API directly...")
+    print("Testing the Go API on the old laptop...")
     
-    # Check if the Python server is running
+    # Check if the Go API is running
     try:
         response = requests.get(f"{base_url}/leagues", timeout=5)
     except requests.exceptions.ConnectionError:
-        print("Error: Could not connect to the Python API server at http://192.168.1.130:8080")
-        print("Make sure the server is running using ./start_servers.sh")
+        print(f"Error: Could not connect to the Go API server at {base_url}")
+        print("Make sure the server is running on the old laptop and ports are open")
         return False
     
     # 1. Get available leagues
@@ -123,6 +124,11 @@ def test_python_api():
         print("  Home and away teams cannot be the same!")
         team2 = get_team_selection("Insert the away team (name or number): ", teams)
     
+    # Get game date
+    game_date = input("Insert game date (DD/MM/YYYY, or press Enter for current matches): ").strip()
+    if not game_date:
+        game_date = datetime.now().strftime("%d/%m/%Y")
+    
     # 3. Start a data processing job
     print(f"\n3. Starting data processing for {team1} vs {team2}...")
     
@@ -131,7 +137,7 @@ def test_python_api():
         "league": selected_league,
         "team1": team1,
         "team2": team2,
-        "gameDate": "12/05/2025"
+        "gameDate": game_date
     }
     
     try:
@@ -211,17 +217,16 @@ def test_python_api():
     
     # 6. Get next game data
     print("\n6. Getting next game data...")
-    try:
-        # Fetch odds and goals data using NextGameScraper
-        odds_data = nextGameScrapping.get_next_game_data('', team1, team2, '12/05/2025', selected_league)
-        goals_data = nextGameScrapping.get_next_game_goals_data('', team1, team2, '12/05/2025', selected_league)
+    
+        # Fetch odds and goals data using NextGameScraper (local for verification)
+    odds_data = nextGameScrapping.get_next_game_data('', team1, team2, game_date, selected_league)
+    goals_data = nextGameScrapping.get_next_game_goals_data('', team1, team2, game_date, selected_league)
 
         # Check if odds data contains an error
-        if 'error' in odds_data:
-            print(f"  Error retrieving odds: {odds_data['error']}")
-        else:
-            print(f"  Odds retrieved: Home: {odds_data.get('B365H', 'N/A')}, "
-                  f"Draw: {odds_data.get('B365D', 'N/A')}, Away: {odds_data.get('B365A', 'N/A')}")
+    if 'error' in odds_data:
+        print(f"  Error retrieving odds: {odds_data['error']}")
+    else:
+        print(f"  Odds retrieved: Home: {odds_data.get('B365H', 'N/A')}, "f"Draw: {odds_data.get('B365D', 'N/A')}, Away: {odds_data.get('B365A', 'N/A')}")
 
         # Check if goals data contains an error
         if 'error' in goals_data:
@@ -230,31 +235,34 @@ def test_python_api():
             print(f"  Goals odds retrieved: Over 2.5: {goals_data.get('B365>2.5', 'N/A')}, "
                   f"Under 2.5: {goals_data.get('B365<2.5', 'N/A')}")
 
-        # Try to get next game data from the API
-        response = requests.get(f"{base_url}/data/next-game")
-        if response.status_code == 200:
-            data_response = response.json()
-            data = data_response.get('data', [])
-            if data:
-                print(f"  Next game: {data[0].get('HomeTeam')} vs {data[0].get('AwayTeam')}")
-                print(f"  Odds Home: {data[0].get('B365H', 'N/A')}, "
-                      f"Draw: {data[0].get('B365D', 'N/A')}, Away: {data[0].get('B365A', 'N/A')}")
-            else:
-                print("  No next game data available from API.")
-        else:
-            print(f"  Error: {response.status_code} - {response.text}")
-            return False
-    except Exception as e:
-        print(f"  Request error: {str(e)}")
-        return False
+            # 6. Get next game data
+            print("\n6. Getting next game data...")
+            try:
+                response = requests.get(f"{base_url}/data/next-game")
+                if response.status_code == 200:
+                    data_response = response.json()
+                    data = data_response.get('data', [])
+                    if data:
+                        print(f"  Next game: {data[0].get('HomeTeam')} vs {data[0].get('AwayTeam')}")
+                        print(f"  Odds Home: {data[0].get('B365H', 'N/A')}, "
+                            f"Draw: {data[0].get('B365D', 'N/A')}, Away: {data[0].get('B365A', 'N/A')}")
+                        print(f"  Goals odds: Over 2.5: {data[0].get('B365>2.5', 'N/A')}, "
+                            f"Under 2.5: {data[0].get('B365<2.5', 'N/A')}")
+                    else:
+                        print("  No next game data available from API.")
+                else:
+                    print(f"  Error: {response.status_code} - {response.text}")
+                    return False
+            except Exception as e:
+                print(f"  Request error: {str(e)}")
+                return False
     
-    print("\nAll tests to the Python API completed successfully!")
-    print("If this test passes but the original test fails, the issue is with the Go API.")
+    print("\nAll tests to the Go API completed successfully!")
     return True
 
 if __name__ == "__main__":
     script_dir = os.path.dirname(os.path.realpath(__file__))
     os.chdir(script_dir)  # Change to the script's directory
     
-    success = test_python_api()
+    success = test_go_api()
     sys.exit(0 if success else 1)
