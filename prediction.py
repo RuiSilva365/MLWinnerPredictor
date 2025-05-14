@@ -1,476 +1,355 @@
+
 import pandas as pd
-import numpy as np
-from typing import Dict, Any, Optional
-import logging
+import requests
 import json
+import logging
+from typing import Dict, Any
+import numpy as np
+import unicodedata
 
-def predict(train_df: pd.DataFrame, 
-            test_df: pd.DataFrame, 
-            pred_df: pd.DataFrame) -> Dict[str, Any]:
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+)
+logger = logging.getLogger(__name__)
+
+def predict(team_games: pd.DataFrame, opp_games: pd.DataFrame, next_game: pd.DataFrame) -> Dict[str, Any]:
     """
-    Main prediction function with enhanced statistical analysis
+    Analyze historical data from CSVs using LM Studio model to predict match outcome and goals.
     
     Args:
-        train_df (pd.DataFrame): Training data
-        test_df (pd.DataFrame): Test data
-        pred_df (pd.DataFrame): Prediction data
+        team_games (pd.DataFrame): TeamGamesTreated.csv (home team historical data)
+        opp_games (pd.DataFrame): OppGamesTreated.csv (away team historical data)
+        next_game (pd.DataFrame): NextGame.csv (upcoming match odds and details)
     
     Returns:
-        Dict with comprehensive prediction results
+        Dict containing match details and predictions with explanations
     """
-    # Setup logging
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
-    
-    # Basic prediction logic
-    results = {
-        'model_type': 'Basic Statistical Prediction',
-        'predictions': {},
-        'odds_analysis': {},
-        'historical_stats': {}
-    }
-    
     try:
-        # Analyze odds in prediction DataFrame
-        if not pred_df.empty:
-            odds_data = pred_df.iloc[0]
-            
-            # Odds analysis
-            results['odds_analysis'] = {
-                'home_odds': {
-                    'max': float(odds_data.get('MaxH', 0)),
-                    'avg': float(odds_data.get('AvgH', 0)),
-                    'b365': float(odds_data.get('B365H', 0))
-                },
-                'draw_odds': {
-                    'max': float(odds_data.get('MaxD', 0)),
-                    'avg': float(odds_data.get('AvgD', 0)),
-                    'b365': float(odds_data.get('B365D', 0))
-                },
-                'away_odds': {
-                    'max': float(odds_data.get('MaxA', 0)),
-                    'avg': float(odds_data.get('AvgA', 0)),
-                    'b365': float(odds_data.get('B365A', 0))
-                }
-            }
-            
-            # Determine most likely outcome based on odds
-            odds_dict = results['odds_analysis']
-            min_odds_outcome = min(
-                ('Home', odds_dict['home_odds']['avg']),
-                ('Draw', odds_dict['draw_odds']['avg']),
-                ('Away', odds_dict['away_odds']['avg']),
-                key=lambda x: x[1]
-            )
-            
-            results['predictions']['most_likely_outcome'] = min_odds_outcome[0]
-            results['predictions']['confidence'] = 1 / min_odds_outcome[1]
+        # Extract match details
+        home_team = next_game['HomeTeam'].iloc[0]
+        away_team = next_game['AwayTeam'].iloc[0]
+        match = f"{home_team} vs {away_team}"
+        logger.info(f"Analyzing match: {match}")
         
-        # Historical statistics analysis
-        if 'FTR' in train_df.columns:
-            # Outcome distribution
-            outcome_counts = train_df['FTR'].value_counts()
-            outcome_probs = train_df['FTR'].value_counts(normalize=True)
-            
-            results['historical_stats'] = {
-                'outcome_distribution': outcome_counts.to_dict(),
-                'outcome_probabilities': outcome_probs.to_dict()
-            }
+        # Log CSV contents
+        logger.info(f"TeamGamesTreated.csv columns: {list(team_games.columns)}")
+        logger.info(f"TeamGamesTreated.csv HomeTeam values: {team_games['HomeTeam'].unique().tolist()}")
+        logger.info(f"OppGamesTreated.csv columns: {list(opp_games.columns)}")
+        logger.info(f"OppGamesTreated.csv AwayTeam values: {opp_games['AwayTeam'].unique().tolist()}")
+        logger.info(f"NextGame.csv row: {next_game.to_dict(orient='records')[0]}")
         
-        # Goals analysis if available
-        if 'TotalGoals' in train_df.columns:
-            goals_stats = {
-                'mean': train_df['TotalGoals'].mean(),
-                'median': train_df['TotalGoals'].median(),
-                'std': train_df['TotalGoals'].std()
-            }
-            results['historical_stats']['goals'] = goals_stats
+        # Summarize team data
+        team_stats = compute_team_stats(team_games, home_team, is_home=True)
+        opp_stats = compute_team_stats(opp_games, away_team, is_home=False)
+        odds_stats = compute_odds_stats(next_game)
         
-        logger.info("Prediction analysis completed successfully")
+        # Convert numpy types to Python types
+        team_stats = convert_numpy_types(team_stats)
+        opp_stats = convert_numpy_types(opp_stats)
+        odds_stats = convert_numpy_types(odds_stats)
         
-        # Convert float values to fixed decimal for JSON serialization
-        results = json.loads(json.dumps(results, default=lambda x: round(x, 4) if isinstance(x, float) else x))
+        # Log data summary
+        logger.info(f"Home Team ({home_team}) Stats: {json.dumps(team_stats, indent=2)}")
+        logger.info(f"Away Team ({away_team}) Stats: {json.dumps(opp_stats, indent=2)}")
+        logger.info(f"Odds Stats: {json.dumps(odds_stats, indent=2)}")
+        
+        # Check for empty stats
+        if team_stats['total_games'] == 0 or opp_stats['total_games'] == 0:
+            logger.warning("Empty stats detected. Predictions may be unreliable.")
+        
+        # Create prompt for LM Studio
+        prompt = create_lm_prompt(team_stats, opp_stats, odds_stats, home_team, away_team)
+        logger.info(f"LM Studio Prompt:\n{prompt}")
+        
+        # Query LM Studio model
+        model_response = query_lm_studio(prompt)
+        logger.info(f"LM Studio Response:\n{model_response}")
+        
+        # Parse model response
+        predictions = parse_model_response(model_response, match)
+        
+        return {
+            "match": match,
+            "prediction": predictions
+        }
     
     except Exception as e:
-        logger.error(f"Prediction error: {e}")
-        results['error'] = str(e)
-    
-    return results
-import pandas as pd
-import numpy as np
-from typing import Dict, Any, Optional
-import logging
+        logger.error(f"Prediction failed: {str(e)}")
+        return {
+            "match": f"{home_team} vs {away_team}",
+            "prediction": {
+                "error": f"Prediction failed: {str(e)}"
+            }
+        }
 
-# Graceful import handling
-try:
-    import torch
-    from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-    TRANSFORMER_AVAILABLE = True
-except ImportError:
-    TRANSFORMER_AVAILABLE = False
-    # Mock classes to prevent import errors
-    class AutoTokenizer:
-        @classmethod
-        def from_pretrained(cls, *args, **kwargs):
-            return None
-    
-    class AutoModelForCausalLM:
-        @classmethod
-        def from_pretrained(cls, *args, **kwargs):
-            return None
-    
-    def pipeline(*args, **kwargs):
-        return None
-
-def predict(train_df: pd.DataFrame, 
-            test_df: pd.DataFrame, 
-            pred_df: pd.DataFrame) -> Dict[str, Any]:
+def convert_numpy_types(data: Dict) -> Dict:
     """
-    Main prediction function
+    Convert numpy types to Python native types for JSON serialization.
     
     Args:
-        train_df (pd.DataFrame): Training data
-        test_df (pd.DataFrame): Test data
-        pred_df (pd.DataFrame): Prediction data
+        data: Dictionary containing possible numpy types
     
     Returns:
-        Dict with comprehensive prediction results
+        Dictionary with converted types
     """
-    # Setup logging
-    logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__name__)
+    for key, value in data.items():
+        if isinstance(value, (np.integer, np.floating)):
+            data[key] = value.item()
+        elif isinstance(value, np.ndarray):
+            data[key] = value.tolist()
+        elif pd.isna(value):
+            data[key] = 0  # Replace NaN with 0
+    return data
+
+def compute_team_stats(df: pd.DataFrame, team: str, is_home: bool) -> Dict[str, Any]:
+    """
+    Compute statistics from team dataframe based on historical data.
     
-    # Basic prediction logic
-    results = {
-        'model_type': 'Basic Statistical Prediction',
-        'predictions': None,
-        'probabilities': None,
-        'insights': None
-    }
+    Args:
+        df: DataFrame with team data
+        team: Team name
+        is_home: True if home team, False if away team
     
+    Returns:
+        Dictionary with team statistics
+    """
+    stats = {}
     try:
-        # Prepare features (handle cases with or without FTR column)
-        if 'FTR' in train_df.columns:
-            # Basic mode prediction based on most frequent outcome
-            most_frequent_outcome = train_df['FTR'].mode().iloc[0]
-            
-            # Outcome probabilities
-            outcome_probs = train_df['FTR'].value_counts(normalize=True)
-            
-            results['predictions'] = most_frequent_outcome
-            results['probabilities'] = outcome_probs.to_dict()
+        # Normalize team name for matching
+        def normalize_team_name(name: str) -> str:
+            # Remove accents, convert to lowercase, strip whitespace
+            name = ''.join(c for c in unicodedata.normalize('NFD', name)
+                          if unicodedata.category(c) != 'Mn')
+            return name.lower().strip()
         
-        # Add basic insights from prediction DataFrame
-        if not pred_df.empty:
-            insights = []
-            for col, value in pred_df.iloc[0].items():
-                insights.append(f"{col}: {value}")
-            
-            results['insights'] = insights
+        team_norm = normalize_team_name(team)
+        logger.info(f"Searching for team: {team} (normalized: {team_norm})")
         
-        logger.info("Prediction completed successfully")
+        # Filter games (home or away)
+        if is_home:
+            games = df[df['HomeTeam'].apply(normalize_team_name) == team_norm].copy()
+            stats['context'] = 'home'
+            logger.info(f"Found {len(games)} home games for {team}")
+            stats['goals_scored_avg'] = games['FTHG'].mean() if 'FTHG' in games.columns and len(games) > 0 else 0
+            stats['goals_conceded_avg'] = games['FTAG'].mean() if 'FTAG' in games.columns and len(games) > 0 else 0
+        else:
+            games = df[df['AwayTeam'].apply(normalize_team_name) == team_norm].copy()
+            stats['context'] = 'away'
+            logger.info(f"Found {len(games)} away games for {team}")
+            stats['goals_scored_avg'] = games['FTAG'].mean() if 'FTAG' in games.columns and len(games) > 0 else 0
+            stats['goals_conceded_avg'] = games['FTHG'].mean() if 'FTHG' in games.columns and len(games) > 0 else 0
+        
+        # Win/Draw/Loss rates
+        if 'FTR' in games.columns:
+            total_games = len(games)
+            stats['win_rate'] = len(games[games['FTR'] == ('H' if is_home else 'A')]) / total_games if total_games > 0 else 0
+            stats['draw_rate'] = len(games[games['FTR'] == 'D']) / total_games if total_games > 0 else 0
+            stats['loss_rate'] = len(games[games['FTR'] == ('A' if is_home else 'H')]) / total_games if total_games > 0 else 0
+        else:
+            stats['win_rate'] = 0
+            stats['draw_rate'] = 0
+            stats['loss_rate'] = 0
+        
+        stats['total_games'] = len(games)
+        stats['avg_total_goals'] = (stats['goals_scored_avg'] + stats['goals_conceded_avg']) if stats['total_games'] > 0 else 0
+        
+        return stats
+    
     except Exception as e:
-        logger.error(f"Prediction error: {e}")
-        results['error'] = str(e)
-    
-    return results
-import pandas as pd
-import numpy as np
-from typing import Dict, Any, Optional
-import logging
-
-# Graceful import handling
-try:
-    import torch
-    from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-    TRANSFORMER_AVAILABLE = True
-except ImportError:
-    TRANSFORMER_AVAILABLE = False
-    # Mock classes to prevent import errors
-    class AutoTokenizer:
-        @classmethod
-        def from_pretrained(cls, *args, **kwargs):
-            return None
-    
-    class AutoModelForCausalLM:
-        @classmethod
-        def from_pretrained(cls, *args, **kwargs):
-            return None
-    
-    def pipeline(*args, **kwargs):
-        return None
-
-class MLPredictor:
-    def __init__(self, 
-                 model_name: str = "microsoft/phi-2",
-                 device: Optional[str] = None):
-        """
-        Initialize ML Predictor with optional LLM integration
-        
-        Args:
-            model_name (str): Hugging Face model identifier
-            device (str, optional): Computation device ('cuda', 'cpu')
-        """
-        # Logging setup
-        logging.basicConfig(level=logging.INFO)
-        self.logger = logging.getLogger(__name__)
-        
-        # Device selection
-        if not TRANSFORMER_AVAILABLE:
-            self.logger.warning("Transformer libraries not installed. LLM features will be limited.")
-            self.device = 'cpu'
-            self.model = None
-            self.tokenizer = None
-            self.generator = None
-            return
-        
-        # Device selection
-        if device is None:
-            self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
-   
-        # Model and tokenizer (optional loading)
-        self.model = None
-        self.tokenizer = None
-        self.generator = None
-        
-        try:
-            # Attempt to load model
-            self.tokenizer = AutoTokenizer.from_pretrained(model_name)
-            self.model = AutoModelForCausalLM.from_pretrained(
-                model_name, 
-                torch_dtype=torch.float16 if self.device == 'cuda' else torch.float32,
-                device_map='auto',
-                offload_folder="offload",  # Specify a folder for offloaded weights
-                offload_state_dict=True    # Enable offloading of state dict to disk
-            )
-            
-            # Create text generation pipeline
-            self.generator = pipeline(
-                'text-generation', 
-                model=self.model, 
-                tokenizer=self.tokenizer,
-                #device=self.device
-            )
-        except Exception as e:
-            self.logger.warning(f"Could not load LLM: {e}")
-            self.model = None
-            self.tokenizer = None
-            self.generator = None
-
-    def prepare_input_features(self, 
-                               train_df: pd.DataFrame, 
-                               test_df: pd.DataFrame, 
-                               pred_df: pd.DataFrame) -> Dict[str, Any]:
-        """
-        Prepare input features for prediction
-        
-        Args:
-            train_df (pd.DataFrame): Training data
-            test_df (pd.DataFrame): Test data
-            pred_df (pd.DataFrame): Prediction data
-        
-        Returns:
-            Dict containing prepared features
-        """
-        # Basic feature preparation
-        features = {
-            'train': {
-                'X': train_df.drop(['FTR'], axis=1) if 'FTR' in train_df.columns else train_df,
-                'y': train_df['FTR'] if 'FTR' in train_df.columns else None
-            },
-            'test': {
-                'X': test_df.drop(['FTR'], axis=1) if 'FTR' in test_df.columns else test_df,
-                'y': test_df['FTR'] if 'FTR' in test_df.columns else None
-            },
-            'pred': {
-                'X': pred_df
-            }
+        logger.error(f"Error computing stats for {team}: {str(e)}")
+        return {
+            "context": "home" if is_home else "away",
+            "goals_scored_avg": 0,
+            "goals_conceded_avg": 0,
+            "win_rate": 0,
+            "draw_rate": 0,
+            "loss_rate": 0,
+            "total_games": 0,
+            "avg_total_goals": 0
         }
-        
-        return features
 
-    def ml_prediction(self, 
-                      train_df: pd.DataFrame, 
-                      test_df: pd.DataFrame, 
-                      pred_df: pd.DataFrame) -> Dict[str, Any]:
-        """
-        Perform basic machine learning prediction
-        
-        Args:
-            train_df (pd.DataFrame): Training data
-            test_df (pd.DataFrame): Test data
-            pred_df (pd.DataFrame): Prediction data
-        
-        Returns:
-            Dict with prediction results
-        """
-        # Prepare features
-        features = self.prepare_input_features(train_df, test_df, pred_df)
-        
-        # Simple statistical prediction
-        results = {
-            'model_type': 'Basic Statistical',
-            'predictions': None,
-            'probabilities': None,
-            'accuracy': None
+def compute_odds_stats(next_game: pd.DataFrame) -> Dict[str, Any]:
+    """
+    Extract odds statistics from NextGame.csv.
+    
+    Args:
+        next_game: DataFrame with next game data
+    
+    Returns:
+        Dictionary with odds statistics
+    """
+    try:
+        stats = {
+            "home_odds": float(next_game['B365H'].iloc[0]) if 'B365H' in next_game.columns else 0,
+            "draw_odds": float(next_game['B365D'].iloc[0]) if 'B365D' in next_game.columns else 0,
+            "away_odds": float(next_game['B365A'].iloc[0]) if 'B365A' in next_game.columns else 0,
+            "over_2_5_odds": float(next_game['B365>2.5'].iloc[0]) if 'B365>2.5' in next_game.columns else 0,
+            "under_2_5_odds": float(next_game['B365<2.5'].iloc[0]) if 'B365<2.5' in next_game.columns else 0
         }
-        
-        try:
-            # If target exists in training data, do basic analysis
-            if features['train']['y'] is not None:
-                # Most frequent outcome
-                most_frequent_outcome = features['train']['y'].mode().iloc[0]
-                
-                results['predictions'] = most_frequent_outcome
-                results['probabilities'] = features['train']['y'].value_counts(normalize=True).to_dict()
-        except Exception as e:
-            self.logger.warning(f"Basic prediction error: {e}")
-        
-        return results
+        return stats
+    except Exception as e:
+        logger.error(f"Error computing odds stats: {str(e)}")
+        return {
+            "home_odds": 0,
+            "draw_odds": 0,
+            "away_odds": 0,
+            "over_2_5_odds": 0,
+            "under_2_5_odds": 0
+        }
 
-    def llm_prediction(self, 
-                       train_df: pd.DataFrame, 
-                       test_df: pd.DataFrame, 
-                       pred_df: pd.DataFrame) -> Dict[str, Any]:
-        """
-        Generate LLM-based prediction and insights
-        
-        Args:
-            train_df (pd.DataFrame): Training data
-            test_df (pd.DataFrame): Test data
-            pred_df (pd.DataFrame): Prediction data
-        
-        Returns:
-            Dict with LLM prediction insights
-        """
-        # Check if LLM is available
-        if not self.generator:
-            self.logger.warning("LLM not loaded. Skipping LLM prediction.")
-            return {}
-        
-        # Prepare features
-        features = self.prepare_input_features(train_df, test_df, pred_df)
-        
-        # Construct prompt
-        prompt = self._construct_llm_prompt(features)
-        
-        try:
-            # Generate LLM response
-            response = self.generator(
-                prompt, 
-                max_length=500, 
-                num_return_sequences=1,
-                temperature=0.7
-            )[0]['generated_text']
-            
-            # Parse LLM response
-            parsed_response = self._parse_llm_response(response)
-            
-            return {
-                'llm_insights': parsed_response,
-                'raw_llm_response': response
-            }
-        except Exception as e:
-            self.logger.error(f"LLM prediction error: {e}")
-            return {}
+def create_lm_prompt(team_stats: Dict, opp_stats: Dict, odds_stats: Dict, home_team: str, away_team: str) -> str:
+    """
+    Create a prompt for the LM Studio model.
+    
+    Args:
+        team_stats: Home team statistics
+        opp_stats: Away team statistics
+        odds_stats: Odds statistics
+        home_team: Home team name
+        away_team: Away team name
+    
+    Returns:
+        String prompt for the model
+    """
+    prompt = f"""
+You are a football match analyst. Analyze the following historical data for the upcoming match between {home_team} (home) and {away_team} (away) to predict the match outcome and total goals. Focus on insights from the data, such as team performance, goal trends, or odds value. Provide two outputs:
+1. A prediction for the match outcome (e.g., "{home_team} might win because...") with a valid observation based on the data.
+2. A prediction for total goals (e.g., "Over 2.5 goals is likely because...") with a valid observation based on the data.
 
-    def _construct_llm_prompt(self, features: Dict[str, Any]) -> str:
-        """
-        Construct a detailed prompt for LLM prediction
-        
-        Args:
-            features (Dict): Prepared input features
-        
-        Returns:
-            str: Formatted prompt for LLM
-        """
-        # Basic prompt construction
-        prompt = f"""Football Match Prediction Analysis
+### Historical Data Summary:
+**{home_team} (Home) Stats (based on past home games):**
+- Games Played: {team_stats['total_games']}
+- Average Goals Scored: {team_stats['goals_scored_avg']:.2f}
+- Average Goals Conceded: {team_stats['goals_conceded_avg']:.2f}
+- Win Rate: {team_stats['win_rate']:.2%} 
+- Draw Rate: {team_stats['draw_rate']:.2%}
+- Loss Rate: {team_stats['loss_rate']:.2%}
+- Average Total Goals per Game: {team_stats['avg_total_goals']:.2f}
 
-Training Data Context:
-- Total Training Matches: {len(features['train']['X']) if features['train']['X'] is not None else 0}
-- Outcome Distribution: {features['train']['y'].value_counts() if features['train']['y'] is not None else 'No training data'}
+**{away_team} (Away) Stats (based on past away games):**
+- Games Played: {opp_stats['total_games']}
+- Average Goals Scored: {opp_stats['goals_scored_avg']:.2f}
+- Average Goals Conceded: {opp_stats['goals_conceded_avg']:.2f}
+- Win Rate: {opp_stats['win_rate']:.2%}
+- Draw Rate: {opp_stats['draw_rate']:.2%}
+- Loss Rate: {opp_stats['loss_rate']:.2%}
+- Average Total Goals per Game: {opp_stats['avg_total_goals']:.2f}
 
-Prediction Match Features:
-{features['pred']['X'].to_string()}
+**Betting Odds for Upcoming Match:**
+- {home_team} Win: {odds_stats['home_odds']:.2f}
+- Draw: {odds_stats['draw_odds']:.2f}
+- {away_team} Win: {odds_stats['away_odds']:.2f}
+- Over 2.5 Goals: {odds_stats['over_2_5_odds']:.2f}
+- Under 2.5 Goals: {odds_stats['under_2_5_odds']:.2f}
 
-Task: 
-1. Analyze the match features
-2. Provide insights into potential match outcome
-3. Estimate probability of different results
-4. Highlight key factors influencing the prediction
-
-Provide a structured response with:
-- Predicted Outcome
-- Confidence Level
-- Key Influencing Factors
+### Instructions:
+- Analyze the historical data to identify patterns (e.g., strong home performance, high-scoring games).
+- Provide a concise prediction for the match outcome with a specific reason based on the data.
+- Provide a concise prediction for over/under 2.5 goals with a specific reason based on the data.
+- Format the response as:
+  - Outcome: [Your prediction and reason]
+  - Goals: [Your prediction and reason]
 """
-        return prompt
+    return prompt
 
-    def _parse_llm_response(self, response: str) -> Dict[str, Any]:
-        """
-        Parse LLM generated response
-        
-        Args:
-            response (str): Raw LLM response
-        
-        Returns:
-            Dict with parsed insights
-        """
-        # Basic parsing (can be enhanced)
-        insights = {
-            'raw_text': response,
-            'predicted_outcome': None,
-            'confidence': None,
-            'key_factors': []
-        }
-        
-        # Simple parsing logic (can be made more sophisticated)
-        try:
-            # Extract prediction
-            if 'Predicted Outcome:' in response:
-                outcome = response.split('Predicted Outcome:')[1].split('\n')[0].strip()
-                insights['predicted_outcome'] = outcome
-            
-            # Extract confidence
-            if 'Confidence Level:' in response:
-                confidence = response.split('Confidence Level:')[1].split('\n')[0].strip()
-                insights['confidence'] = confidence
-            
-            # Extract key factors
-            if 'Key Influencing Factors:' in response:
-                factors = response.split('Key Influencing Factors:')[1].split('\n')
-                insights['key_factors'] = [f.strip() for f in factors if f.strip()]
-        except Exception as e:
-            self.logger.warning(f"Error parsing LLM response: {e}")
-        
-        return insights
-
-def predict(train_df: pd.DataFrame, 
-            test_df: pd.DataFrame, 
-            pred_df: pd.DataFrame) -> Dict[str, Any]:
+def query_lm_studio(prompt: str) -> str:
     """
-    Main prediction function
+    Query the LM Studio model via its local API.
     
     Args:
-        train_df (pd.DataFrame): Training data
-        test_df (pd.DataFrame): Test data
-        pred_df (pd.DataFrame): Prediction data
+        prompt: Input prompt for the model
     
     Returns:
-        Dict with comprehensive prediction results
+        Model's text response
     """
-    # Initialize predictor
-    predictor = MLPredictor()
+    try:
+        url = "http://localhost:1234/v1/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "model": "phi-4-reasoning-plus",  # Replace with your model name (e.g., "phi-2", "llama-7b-hf")
+            "messages": [
+                {"role": "system", "content": "You are a football match analyst."},
+                {"role": "user", "content": prompt}
+            ],
+            "max_tokens": 200,
+            "temperature": 0.7
+        }
+        
+        logger.info(f"Sending request to LM Studio: {json.dumps(payload, indent=2)}")
+        response = requests.post(url, headers=headers, json=payload)
+        if response.status_code == 404:
+            logger.error("LM Studio returned 404: Ensure a model is loaded and the model name is correct.")
+            raise Exception("LM Studio 404: No model loaded or incorrect model name")
+        response.raise_for_status()
+        result = response.json()
+        return result['choices'][0]['message']['content'].strip()
     
-    # Perform predictions
-    ml_results = predictor.ml_prediction(train_df, test_df, pred_df)
-    llm_results = predictor.llm_prediction(train_df, test_df, pred_df)
+    except Exception as e:
+        logger.error(f"LM Studio query failed: {str(e)}")
+        raise
+
+def parse_model_response(response: str, match: str) -> Dict[str, str]:
+    """
+    Parse the LM Studio model's response into structured predictions.
     
-    # Combine results
-    combined_results = {
-        **ml_results,
-        **llm_results
-    }
+    Args:
+        response: Raw text response from the model
+        match: Match name (e.g., "Alavés vs Valencia")
     
-    return combined_results
+    Returns:
+        Dictionary with outcome and goals predictions
+    """
+    try:
+        # Initialize defaults
+        predictions = {
+            "outcome": f"No clear prediction for {match}.",
+            "goals": "No clear goals prediction."
+        }
+        
+        # Split response into lines
+        lines = response.split('\n')
+        for line in lines:
+            line = line.strip()
+            if line.startswith("Outcome:"):
+                predictions["outcome"] = line.replace("Outcome:", "").strip()
+            elif line.startswith("Goals:"):
+                predictions["goals"] = line.replace("Goals:", "").strip()
+        
+        return predictions
+    
+    except Exception as e:
+        logger.error(f"Error parsing model response: {str(e)}")
+        return {
+            "outcome": f"Error parsing outcome for {match}.",
+            "goals": "Error parsing goals prediction."
+        }
+
+def main():
+    """
+    Main function for testing prediction.py standalone.
+    """
+    try:
+        # Load dataframes
+        team_games = pd.read_csv("TeamGamesTreated.csv")
+        opp_games = pd.read_csv("OppGamesTreated.csv")
+        next_game = pd.read_csv("NextGame.csv")
+        
+        # Run prediction
+        result = predict(team_games, opp_games, next_game)
+        
+        # Print results
+        print(f"Match: {result['match']}")
+        print("Predictions:")
+        if "error" in result['prediction']:
+            print(f"  Error: {result['prediction']['error']}")
+        else:
+            print(f"  Outcome: {result['prediction']['outcome']}")
+            print(f"  Goals: {result['prediction']['goals']}")
+    
+    except Exception as e:
+        print(f"Error in main: {str(e)}")
+
+if __name__ == "__main__":
+    main()

@@ -41,8 +41,10 @@ def get_next_game_data(odds_url: str, star_club: str, opp_club: str, game_date: 
             return {"error": f"League {league} not supported by The Odds API"}
         
         logger.info(f"Fetching odds for {league} ({sport_key})")
-        api_key = os.getenv("ODDS_API_KEY", "6521a8f852098babe8777208742aes518")  # Replace with your key
-        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}®ions=eu&markets=h2h,totals&oddsFormat=decimal"
+        api_key = '6521a8f852098babe8777208742ae518'
+        if not api_key:
+            raise ValueError("ODDS_API_KEY environment variable not set")
+        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=eu&markets=h2h,totals&oddsFormat=decimal"
         
         response = requests.get(url)
         response.raise_for_status()
@@ -217,8 +219,10 @@ def get_next_game_goals_data(odds_url: str, star_club: str, opp_club: str, game_
             return {"error": f"League {league} not supported by The Odds API"}
         
         logger.info(f"Fetching odds for {league} ({sport_key})")
-        api_key = os.getenv("ODDS_API_KEY", "your_api_key_here")  # Replace with your key
-        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}®ions=eu&markets=totals&oddsFormat=decimal"
+        api_key = os.getenv("ODDS_API_KEY")
+        if not api_key:
+            raise ValueError("ODDS_API_KEY environment variable not set")
+        url = f"https://api.the-odds-api.com/v4/sports/{sport_key}/odds/?apiKey={api_key}&regions=eu&markets=totals&oddsFormat=decimal"
         
         response = requests.get(url)
         response.raise_for_status()

@@ -6,13 +6,14 @@ import os
 from typing import Dict, Optional, Tuple, List, Any
 import treatment
 import nextGameScrapping
+import prediction
 import uuid
 import logging
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # Configure logging
-logging.basicBasic(
+logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
 )
@@ -249,7 +250,6 @@ def process_game_data(job_id: str, data: Dict[str, Any]) -> None:
         
         if 'error' in odds_data:
             logger.warning(f"Failed to fetch odds: {odds_data['error']}")
-            # Store upcoming games for frontend to handle
             result = {
                 'team1': {
                     'name': star_club,
@@ -291,6 +291,11 @@ def process_game_data(job_id: str, data: Dict[str, Any]) -> None:
                 "Avg<2.5": 0
             }
         
+        # Run prediction
+        logger.info("Running prediction...")
+        next_game_df = pd.read_csv("NextGame.csv")
+        prediction_result = prediction.predict(team_games, opp_games, next_game_df)
+        
         result = {
             'team1': {
                 'name': star_club,
@@ -304,7 +309,8 @@ def process_game_data(job_id: str, data: Dict[str, Any]) -> None:
             },
             'next_game': {
                 'odds': odds_data,
-                'goals_odds': goals_data
+                'goals_odds': goals_data,
+                'prediction': prediction_result
             }
         }
         
