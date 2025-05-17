@@ -1,0 +1,7 @@
+2025-05-17 22:23:23,686 - ERROR - Error reading NextGame.csv: Error tokenizing data. C error: Expected 1 fields in line 11, saw 2
+
+2025-05-17 22:23:23,686 - WARNING - Attempting to manually parse the file
+2025-05-17 22:23:23,687 - INFO - Manually parsed CSV with columns: ['# fix_next_game.py']
+2025-05-17 22:23:23,697 - INFO - Created backup of original NextGame.csv
+2025-05-17 22:23:23,700 - INFO - Successfully wrote new NextGame.csv with all required columns
+2025-05-17 22:23:23,702 - INFO - Verification successful - file contains all required columns

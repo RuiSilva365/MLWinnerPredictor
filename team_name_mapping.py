@@ -339,12 +339,15 @@ PRIMEIRA_LIGA_TEAMS = {
     'rioavefc': 'rio ave',
     'santaclara': 'santa clara',
     'cdsantaclara': 'santa clara',
-    'sporting': 'sp lisbon',
-    'sportinglisbon': 'sp lisbon',
-    'sportingcp': 'sp lisbon',
-    'guimaraes': 'guimaraes',
-    'vitoriasc': 'guimaraes',
-    'vitoriaganmarares': 'guimaraes'
+    'sporting': 'Sp Lisbon',
+    'sportinglisbon': 'Sp Lisbon',
+    'sportingcp': 'Sp Lisbon',
+    'guimaraes': 'Guimaraes',
+    'vitoriasc': 'Guimaraes',
+    'vitoriaganmarares': 'Guimaraes',
+    'sportinglisbon': 'Sp Lisbon',  # Handle spaces being removed during normalization
+    'vitóriasc': 'Guimaraes',       # Handle accent characters
+    'vitoriasc': 'Guimaraes',       # Handle missing accents
 }
 
 # Combined dictionary of all teams

@@ -1,2 +1,2 @@
-HomeTeam,AwayTeam,Day,Month,Year,Day_of_week,WDH,WDD,WDA,WMH,WMD,WMA,TIH,TID,TIA,BFH,BFD,BFA,NBH,NBD,NBA,BSH,BSD,BSA,MaxH,AvgH,MaxD,AvgD,MaxA,AvgA,B365H,B365D,B365A,BWH,BWD,BWA
-Alaves,Valencia,14,5,2025,Wednesday,1.07,9.0,90.0,1.09,8.5,90.0,1.05,8.5,120.0,1.09,12.0,140.0,1.06,9.0,81.0,1.06,9.0,81.0,1.09,1.07,12.0,9.333333333333334,140.0,100.33333333333333,1.07,9.0,90.0,1.03,13.0,251.0
+Date,HomeTeam,AwayTeam,FTHG,FTAG,FTR,Season,B365H,B365D,B365A,BWH,BWD,BWA,MaxH,MaxD,MaxA,AvgH,AvgD,AvgA,B365>2.5,B365<2.5,Max>2.5,Max<2.5,Avg>2.5,Avg<2.5,TotalGoals,FTRodds_feedback,Goalsodds_feedback,Day,Month,Year,Day_of_week,Temperature,Precipitation,WeatherCode,Weather,HomePosition,AwayPosition
+2025-05-18,Lecce,Torino,,,,2024/2025,2.0,3.5,3.0,2.1,3.4,2.9,2.2,3.6,3.1,2.1,3.5,3.0,1.9,2.1,2.0,2.2,1.95,2.15,,,,18,5,2025,Sunday,,,,Unknown,20,10

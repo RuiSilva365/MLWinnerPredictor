@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # test_go_api.py
-# Tests the Go API running on the old laptop from a remote machine (e.g., Mac)
+# Tests the Go API running on the old laptop from a remote machine
 
 import requests
 import json
@@ -8,7 +8,7 @@ import time
 import sys
 import os
 import urllib.parse
-import nextGameScrapping
+import pandas as pd
 import logging
 from datetime import datetime
 
@@ -61,7 +61,7 @@ def test_go_api():
         return False
     
     # Get league selection
-    selected_league = input("Insert a league name or number: ").strip()
+    selected_league = input("\nInsert a league name or number: ").strip()
     try:
         league_idx = int(selected_league) - 1
         if 0 <= league_idx < len(leagues):
@@ -116,16 +116,16 @@ def test_go_api():
                 print(f"  Team '{selection}' not found. Please enter a valid team name or number.")
     
     # Get team selections
-    team1 = get_team_selection("Insert the home team (name or number): ", teams)
-    team2 = get_team_selection("Insert the away team (name or number): ", teams)
+    team1 = get_team_selection("\nInsert the home team (name or number): ", teams)
+    team2 = get_team_selection("\nInsert the away team (name or number): ", teams)
     
     # Ensure different teams
     while team1 == team2:
         print("  Home and away teams cannot be the same!")
-        team2 = get_team_selection("Insert the away team (name or number): ", teams)
+        team2 = get_team_selection("\nInsert the away team (name or number): ", teams)
     
     # Get game date
-    game_date = input("Insert game date (DD/MM/YYYY, or press Enter for current matches): ").strip()
+    game_date = input("\nInsert game date (DD/MM/YYYY, or press Enter for current matches): ").strip()
     if not game_date:
         game_date = datetime.now().strftime("%d/%m/%Y")
     
@@ -183,62 +183,123 @@ def test_go_api():
                     upcoming_games = next_game_info.get('upcoming_games', [])
                     events = next_game_info.get('events', [])
                     
-                    print(f"\n  {odds_error}")
+                    print(f"\n  Message: {odds_error}")
                     
-                    if upcoming_games:
-                        print("\nPlease select an upcoming game:")
-                        for game in upcoming_games:
-                            print(game)
+                    # DEBUG: Print raw data to diagnose the issue
+                    print("\n  DEBUG - Raw data from API:")
+                    print(f"  - upcoming_games type: {type(upcoming_games)}, length: {len(upcoming_games) if upcoming_games else 0}")
+                    print(f"  - events type: {type(events)}, length: {len(events) if events else 0}")
+                    
+                    # NEW: Force some content for testing if upcoming_games is empty but events exist
+                    if not upcoming_games and events:
+                        print("\n  Creating upcoming games list from events data...")
+                        upcoming_games = []
+                        for i, event in enumerate(events):
+                            home_team = event.get('home_team', 'Unknown')
+                            away_team = event.get('away_team', 'Unknown')
+                            commence_time = event.get('commence_time', '')
+                            if commence_time:
+                                try:
+                                    game_time = datetime.fromisoformat(commence_time.replace("Z", "+00:00"))
+                                    date_str = game_time.strftime("%Y-%m-%d %H:%M UTC")
+                                except:
+                                    date_str = commence_time
+                            else:
+                                date_str = "Unknown time"
+                            
+                            upcoming_games.append(f"{i+1}. {home_team} vs {away_team} at {date_str}")
+                    
+                    if upcoming_games or events:
+                        print("\n  Available upcoming games:")
+                        if upcoming_games:
+                            for game in upcoming_games:
+                                print(f"    {game}")
+                        else:
+                            # Fallback to display raw events data
+                            for i, event in enumerate(events, 1):
+                                print(f"    {i}. {event.get('home_team', 'Unknown')} vs {event.get('away_team', 'Unknown')}")
                         
+                        # Critical: Wait for user to select a game
+                        game_num = 0
                         while True:
                             try:
-                                game_num = int(input("\nInsert game number: "))
+                                game_input = input("\n  Select a game number: ").strip()
+                                game_num = int(game_input)
                                 if 1 <= game_num <= len(events):
-                                    selected_event = events[game_num - 1]
-                                    new_team1 = selected_event['home_team']
-                                    new_team2 = selected_event['away_team']
-                                    new_date = datetime.fromisoformat(
-                                        selected_event['commence_time'].replace("Z", "+00:00")
-                                    ).strftime("%d/%m/%Y")
-                                    
-                                    print(f"  Selected game: {new_team1} vs {new_team2} on {new_date}")
-                                    
-                                    # Create updated prediction request with selected event
-                                    updated_request = {
-                                        "season": prediction_request["season"],
-                                        "league": prediction_request["league"],
-                                        "team1": prediction_request["team1"],
-                                        "team2": prediction_request["team2"],
-                                        "gameDate": prediction_request["gameDate"],
-                                        "selected_event": selected_event
-                                    }
-                                    
-                                    # Submit new job with selected event
-                                    response = requests.post(f"{base_url}/predict", json=updated_request)
-                                    if response.status_code == 200:
-                                        job_response = response.json()
-                                        job_id = job_response.get('job_id')
-                                        print(f"  New job started with ID: {job_id}")
-                                        status = "pending"
-                                    else:
-                                        print(f"  Error submitting job with selected event: {response.status_code} - {response.text}")
-                                        return False
                                     break
-                                else:
-                                    print(f"  Please enter a number between 1 and {len(upcoming_games)}")
+                                print(f"  Please enter a number between 1 and {len(events)}")
                             except ValueError:
                                 print("  Invalid input. Please enter a number.")
+                        
+                        selected_event = events[game_num - 1]
+                        new_team1 = selected_event.get('home_team', team1)
+                        new_team2 = selected_event.get('away_team', team2)
+                        new_date = datetime.now().strftime("%d/%m/%Y")  # Default
+                        
+                        # Try to parse the date from the event
+                        commence_time = selected_event.get('commence_time', '')
+                        if commence_time:
+                            try:
+                                new_date = datetime.fromisoformat(
+                                    commence_time.replace("Z", "+00:00")
+                                ).strftime("%d/%m/%Y")
+                            except:
+                                print(f"  Warning: Could not parse date from {commence_time}, using current date")
+                        
+                        print(f"\n  Selected game: {new_team1} vs {new_team2} on {new_date}")
+                        
+                        # Create updated prediction request with selected event
+                        updated_request = {
+                            "season": prediction_request["season"],
+                            "league": prediction_request["league"],
+                            "team1": new_team1,  # Use the actual event team names
+                            "team2": new_team2,
+                            "gameDate": new_date,
+                            "selected_event": selected_event
+                        }
+                        
+                        # Submit new job with selected event
+                        print("\n  Submitting new job with selected event...")
+                        response = requests.post(f"{base_url}/predict", json=updated_request)
+                        if response.status_code == 200:
+                            job_response = response.json()
+                            job_id = job_response.get('job_id')
+                            print(f"  New job started with ID: {job_id}")
+                            status = "pending"
+                            attempt = 0  # Reset attempt counter
+                        else:
+                            print(f"  Error submitting job with selected event: {response.status_code} - {response.text}")
+                            return False
                     else:
-                        print("  No upcoming games available for the next week.")
+                        print("  No upcoming games available. Check API logs for details.")
                         return False
                 
                 elif status == "completed":
                     result = job_status.get('result', {})
+                    print(f"\n  Job completed successfully!")
                     print(f"  Team1 ({result.get('team1', {}).get('name')}): {result.get('team1', {}).get('games_count')} games")
                     print(f"  Team2 ({result.get('team2', {}).get('name')}): {result.get('team2', {}).get('games_count')} games")
-                    print("  Next game odds available:", "Yes" if result.get('next_game', {}).get('odds') else "No")
+                    
+                    next_game = result.get('next_game', {})
+                    odds = next_game.get('odds', {})
+                    if odds:
+                        print(f"\n  Next game odds:")
+                        print(f"    Home: {odds.get('B365H', 'N/A')}, Draw: {odds.get('B365D', 'N/A')}, Away: {odds.get('B365A', 'N/A')}")
+                    
+                    goals_odds = next_game.get('goals_odds', {})
+                    if goals_odds:
+                        print(f"    Over 2.5: {goals_odds.get('B365>2.5', 'N/A')}, Under 2.5: {goals_odds.get('B365<2.5', 'N/A')}")
+                    
+                    prediction = next_game.get('prediction', {})
+                    if prediction:
+                        print(f"\n  Prediction:")
+                        print(f"    Match: {prediction.get('match', 'Unknown')}")
+                        pred_details = prediction.get('prediction', {})
+                        print(f"    Outcome: {pred_details.get('outcome', 'Unknown')}")
+                        print(f"    Goals: {pred_details.get('goals', 'Unknown')}")
+                
                 elif status == "error":
-                    print(f"  Error: {job_status.get('error')}")
+                    print(f"\n  Error: {job_status.get('error', 'Unknown error')}")
                     return False
             else:
                 print(f"  Error: {response.status_code} - {response.text}")
@@ -252,7 +313,7 @@ def test_go_api():
             time.sleep(5)
     
     if status != "completed":
-        print("  Job did not complete successfully. Check the API logs.")
+        print("\n  Job did not complete successfully. Check the API logs.")
         return False
     
     # 5. Get team data
@@ -264,7 +325,13 @@ def test_go_api():
             shape = data_response.get('shape', [0, 0])
             columns = data_response.get('columns', [])
             print(f"  DataFrame shape: {shape[0]} rows x {shape[1]} columns")
-            print(f"  Columns: {', '.join(columns)}")
+            if columns:
+                print(f"  Columns: {', '.join(columns[:10])}...")  # Show first 10 columns
+            
+            # Save TeamGamesTreated.csv locally
+            df = pd.DataFrame(data_response.get('data', []))
+            df.to_csv("TeamGamesTreated.csv", index=False)
+            print("  Saved TeamGamesTreated.csv on local machine")
         else:
             print(f"  Error: {response.status_code} - {response.text}")
             return False
@@ -280,7 +347,13 @@ def test_go_api():
             shape = data_response.get('shape', [0, 0])
             columns = data_response.get('columns', [])
             print(f"  DataFrame shape: {shape[0]} rows x {shape[1]} columns")
-            print(f"  Columns: {', '.join(columns)}")
+            if columns:
+                print(f"  Columns: {', '.join(columns[:10])}...")  # Show first a few columns
+            
+            # Save OppGamesTreated.csv locally
+            df = pd.DataFrame(data_response.get('data', []))
+            df.to_csv("OppGamesTreated.csv", index=False)
+            print("  Saved OppGamesTreated.csv on local machine")
         else:
             print(f"  Error: {response.status_code} - {response.text}")
             return False
@@ -301,6 +374,11 @@ def test_go_api():
                       f"Draw: {data[0].get('B365D', 'N/A')}, Away: {data[0].get('B365A', 'N/A')}")
                 print(f"  Goals odds: Over 2.5: {data[0].get('B365>2.5', 'N/A')}, "
                       f"Under 2.5: {data[0].get('B365<2.5', 'N/A')}")
+                
+                # Save NextGame.csv locally
+                df = pd.DataFrame(data)
+                df.to_csv("NextGame.csv", index=False)
+                print("  Saved NextGame.csv on local machine")
             else:
                 print("  No next game data available from API.")
                 return False

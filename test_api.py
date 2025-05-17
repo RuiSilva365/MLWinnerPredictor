@@ -8,7 +8,7 @@ import time
 import sys
 import os
 import urllib.parse
-import nextGameScrapping
+import nextGame
 import logging
 
 # Configure logging
@@ -213,8 +213,8 @@ def test_python_api():
     print("\n6. Getting next game data...")
     try:
         # Fetch odds and goals data using NextGameScraper
-        odds_data = nextGameScrapping.get_next_game_data('', team1, team2, '12/05/2025', selected_league)
-        goals_data = nextGameScrapping.get_next_game_goals_data('', team1, team2, '12/05/2025', selected_league)
+        odds_data = nextGame.get_next_game_data('', team1, team2, '12/05/2025', selected_league)
+        goals_data = nextGame.get_next_game_goals_data('', team1, team2, '12/05/2025', selected_league)
 
         # Check if odds data contains an error
         if 'error' in odds_data:
