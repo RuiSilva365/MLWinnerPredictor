@@ -199,82 +199,77 @@ def compute_odds_stats(next_game: pd.DataFrame) -> Dict[str, Any]:
             "under_2_5_odds": 0
         }
 
-def create_lm_prompt(team_stats: Dict, opp_stats: Dict, odds_stats: Dict, home_team: str, away_team: str) -> str:
-    """
-    Create a prompt for the LM Studio model.
-    
-    Args:
-        team_stats: Home team statistics
-        opp_stats: Away team statistics
-        odds_stats: Odds statistics
-        home_team: Home team name
-        away_team: Away team name
-    
-    Returns:
-        String prompt for the model
-    """
+def create_lm_prompt(team_stats, opp_stats, odds_stats, home_team, away_team):
     prompt = f"""
-You are a football match analyst. Analyze the following historical data for the upcoming match between {home_team} (home) and {away_team} (away) to predict the match outcome and total goals. Focus on insights from the data, such as team performance, goal trends, or odds value. Provide two outputs:
-1. A prediction for the match outcome (e.g., "{home_team} might win because...") with a valid observation based on the data.
-2. A prediction for total goals (e.g., "Over 2.5 goals is likely because...") with a valid observation based on the data.
+I need your help analyzing an upcoming football match between {home_team} (playing at home) and {away_team} (playing away).
 
-### Historical Data Summary:
-**{home_team} (Home) Stats (based on past home games):**
-- Games Played: {team_stats['total_games']}
-- Average Goals Scored: {team_stats['goals_scored_avg']:.2f}
-- Average Goals Conceded: {team_stats['goals_conceded_avg']:.2f}
-- Win Rate: {team_stats['win_rate']:.2%} 
-- Draw Rate: {team_stats['draw_rate']:.2%}
-- Loss Rate: {team_stats['loss_rate']:.2%}
-- Average Total Goals per Game: {team_stats['avg_total_goals']:.2f}
+historical performance data from two separate CSV files:
+1. "TeamGamesTreated.csv" - Contains {team_stats['total_games']} historical HOME matches where {home_team} played as the home team
+2. "OppGamesTreated.csv" - Contains {opp_stats['total_games']} historical AWAY matches where {away_team} played as the away team
 
-**{away_team} (Away) Stats (based on past away games):**
-- Games Played: {opp_stats['total_games']}
-- Average Goals Scored: {opp_stats['goals_scored_avg']:.2f}
-- Average Goals Conceded: {opp_stats['goals_conceded_avg']:.2f}
-- Win Rate: {opp_stats['win_rate']:.2%}
-- Draw Rate: {opp_stats['draw_rate']:.2%}
-- Loss Rate: {opp_stats['loss_rate']:.2%}
-- Average Total Goals per Game: {opp_stats['avg_total_goals']:.2f}
+ statistics:
 
-**Betting Odds for Upcoming Match:**
-- {home_team} Win: {odds_stats['home_odds']:.2f}
+### {home_team} Home Performance:
+- Games Played at Home: {team_stats['total_games']}
+- Average Goals Scored at Home: {team_stats['goals_scored_avg']:.2f}
+- Average Goals Conceded at Home: {team_stats['goals_conceded_avg']:.2f}
+- Home Win Rate: {team_stats['win_rate']:.2%} 
+- Home Draw Rate: {team_stats['draw_rate']:.2%}
+- Home Loss Rate: {team_stats['loss_rate']:.2%}
+- Average Total Goals per Home Game: {team_stats['avg_total_goals']:.2f}
+
+### {away_team} Away Performance:
+- Games Played Away: {opp_stats['total_games']}
+- Average Goals Scored Away: {opp_stats['goals_scored_avg']:.2f}
+- Average Goals Conceded Away: {opp_stats['goals_conceded_avg']:.2f}
+- Away Win Rate: {opp_stats['win_rate']:.2%}
+- Away Draw Rate: {opp_stats['draw_rate']:.2%}
+- Away Loss Rate: {opp_stats['loss_rate']:.2%}
+- Average Total Goals per Away Game: {opp_stats['avg_total_goals']:.2f}
+
+### Betting Odds for Upcoming Match:
+- {home_team} Win: {odds_stats['home_odds']:.2f} (very low odds indicating strong favorite)
 - Draw: {odds_stats['draw_odds']:.2f}
-- {away_team} Win: {odds_stats['away_odds']:.2f}
-- Over 2.5 Goals: {odds_stats['over_2_5_odds']:.2f}
-- Under 2.5 Goals: {odds_stats['under_2_5_odds']:.2f}
+- {away_team} Win: {odds_stats['away_odds']:.2f} (very high odds indicating significant underdog)
 
-### Instructions:
-- Analyze the historical data to identify patterns (e.g., strong home performance, high-scoring games).
-- Provide a concise prediction for the match outcome with a specific reason based on the data.
-- Provide a concise prediction for over/under 2.5 goals with a specific reason based on the data.
-- Format the response as:
-  - Outcome: [Your prediction and reason]
-  - Goals: [Your prediction and reason]
+As a football analyst, please:
+1. Predict the most likely match outcome (home win, draw, or away win)
+2. Predict whether there will be over or under 2.5 total goals in the match
+
+For each prediction, provide a clear reasoning based on the data.
+Format your response exactly as:
+
+Outcome: [Your specific prediction] because [your reasoning based on the statistics]
+Goals: [Your specific over/under prediction] because [your reasoning based on the statistics]
 """
     return prompt
 
 def query_lm_studio(prompt: str) -> str:
     """
-    Query the LM Studio model via its local API.
-    
-    Args:
-        prompt: Input prompt for the model
-    
-    Returns:
-        Model's text response
+    Query the LM Studio model via its local API with improved parameters.
     """
     try:
         url = "http://localhost:1234/v1/chat/completions"
         headers = {"Content-Type": "application/json"}
+        
+        # More detailed system prompt to enforce output format
+        system_prompt = """You are a football match analyst specializing in using statistics to predict match outcomes.
+Always format your predictions as:
+Outcome: [Team] win/draw because [specific reason]
+Goals: Over/Under 2.5 goals because [specific reason]
+
+Never include reasoning tags like <think> in your responses. Always be definitive in your predictions."""
+        
         payload = {
-            "model": "phi-4-reasoning-plus",  # Replace with your model name (e.g., "phi-2", "llama-7b-hf")
+            "model": "meta-llama-3-8b-instruct",
             "messages": [
-                {"role": "system", "content": "You are a football match analyst."},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": 200,
-            "temperature": 0.7
+            "max_tokens": 1000,  # Increased token limit
+            "temperature": 0.4,  # Lower temperature for more deterministic output
+            "top_p": 0.95,      # Slightly restrict token sampling
+            "stop": ["<think>", "</think>"]  # Stop generation if these tags appear
         }
         
         logger.info(f"Sending request to LM Studio: {json.dumps(payload, indent=2)}")
@@ -308,14 +303,39 @@ def parse_model_response(response: str, match: str) -> Dict[str, str]:
             "goals": "No clear goals prediction."
         }
         
+        # Remove any <think> tags and anything between them
+        clean_response = response
+        if "<think>" in response and "</think>" in response:
+            start_idx = response.find("<think>")
+            end_idx = response.find("</think>") + len("</think>")
+            clean_response = response[:start_idx] + response[end_idx:]
+        
         # Split response into lines
-        lines = response.split('\n')
+        lines = clean_response.split('\n')
         for line in lines:
             line = line.strip()
             if line.startswith("Outcome:"):
                 predictions["outcome"] = line.replace("Outcome:", "").strip()
             elif line.startswith("Goals:"):
                 predictions["goals"] = line.replace("Goals:", "").strip()
+            
+        # If we still don't have predictions, look for outcome/goals in the response text
+        if predictions["outcome"] == f"No clear prediction for {match}.":
+            if "win" in clean_response.lower() or "victory" in clean_response.lower():
+                # Extract a sentence containing prediction
+                sentences = [s.strip() for s in clean_response.split('.')]
+                for sentence in sentences:
+                    if "win" in sentence.lower() or "victory" in sentence.lower():
+                        predictions["outcome"] = sentence.strip() + "."
+                        break
+        
+        if predictions["goals"] == "No clear goals prediction.":
+            if "over 2.5" in clean_response.lower() or "under 2.5" in clean_response.lower():
+                sentences = [s.strip() for s in clean_response.split('.')]
+                for sentence in sentences:
+                    if "over 2.5" in sentence.lower() or "under 2.5" in sentence.lower():
+                        predictions["goals"] = sentence.strip() + "."
+                        break
         
         return predictions
     
@@ -325,7 +345,8 @@ def parse_model_response(response: str, match: str) -> Dict[str, str]:
             "outcome": f"Error parsing outcome for {match}.",
             "goals": "Error parsing goals prediction."
         }
-
+        
+        
 def main():
     """
     Main function for testing prediction.py standalone.

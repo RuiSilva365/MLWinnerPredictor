@@ -2,7 +2,7 @@
 # stop_servers.sh
 
 # File path
-ML_PREDICTOR_PATH="/Users/enlt-rsilva/FootPred/MLWinnerPredictor"
+ML_PREDICTOR_PATH="C:/Users/smash/MLWinnerPredictor"
 
 # Change to the ML predictor directory
 cd $ML_PREDICTOR_PATH

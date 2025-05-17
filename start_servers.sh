@@ -2,8 +2,8 @@
 # start_servers.sh
 
 # File paths
-GO_API_PATH="/Users/enlt-rsilva/ExampleApi"
-ML_PREDICTOR_PATH="/Users/enlt-rsilva/FootPred/MLWinnerPredictor"
+GO_API_PATH="C:/Users/smash/goAPI"
+ML_PREDICTOR_PATH="C:/Users/smash/MLWinnerPredictor"
 
 # Function to check if a command exists
 command_exists() {

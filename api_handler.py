@@ -187,6 +187,7 @@ def process_game_data(job_id: str, data: Dict[str, Any]) -> None:
         star_club = data['team1']
         opp_club = data['team2']
         game_date = data['gameDate']
+        selected_event = data.get('selected_event')  # Get selected event if available
         
         league_url_segment = league.lower().replace(' ', '-')
         team1_url = star_club.lower().replace(' ', '-')
@@ -245,10 +246,11 @@ def process_game_data(job_id: str, data: Dict[str, Any]) -> None:
             opp_club=opp_club, 
             game_date=game_date, 
             league=league,
-            allow_prompt=False
+            allow_prompt=False,
+            selected_event=selected_event
         )
         
-        if 'error' in odds_data:
+        if 'error' in odds_data and not selected_event:
             logger.warning(f"Failed to fetch odds: {odds_data['error']}")
             result = {
                 'team1': {
@@ -277,7 +279,8 @@ def process_game_data(job_id: str, data: Dict[str, Any]) -> None:
             opp_club=opp_club, 
             game_date=game_date, 
             league=league,
-            allow_prompt=False
+            allow_prompt=False,
+            selected_event=selected_event
         )
         
         if 'error' in goals_data:
@@ -321,6 +324,6 @@ def process_game_data(job_id: str, data: Dict[str, Any]) -> None:
         logger.error(f"Error processing game data: {str(e)}")
         jobs[job_id]['status'] = 'error'
         jobs[job_id]['error'] = str(e)
-
+        
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)

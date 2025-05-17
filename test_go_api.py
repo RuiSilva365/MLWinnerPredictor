@@ -164,7 +164,7 @@ def test_go_api():
     attempt = 0
     status = "pending"
     
-    while status in ["pending", "processing"] and attempt < max_attempts:
+    while status in ["pending", "processing", "pending_game_selection"] and attempt < max_attempts:
         attempt += 1
         print(f"  Attempt {attempt}/{max_attempts}...")
         
@@ -175,7 +175,64 @@ def test_go_api():
                 status = job_status.get('status')
                 print(f"  Status: {status}")
                 
-                if status == "completed":
+                # Handle game selection if needed
+                if status == "pending_game_selection":
+                    result = job_status.get('result', {})
+                    next_game_info = result.get('next_game', {})
+                    odds_error = next_game_info.get('odds_error', 'No match found.')
+                    upcoming_games = next_game_info.get('upcoming_games', [])
+                    events = next_game_info.get('events', [])
+                    
+                    print(f"\n  {odds_error}")
+                    
+                    if upcoming_games:
+                        print("\nPlease select an upcoming game:")
+                        for game in upcoming_games:
+                            print(game)
+                        
+                        while True:
+                            try:
+                                game_num = int(input("\nInsert game number: "))
+                                if 1 <= game_num <= len(events):
+                                    selected_event = events[game_num - 1]
+                                    new_team1 = selected_event['home_team']
+                                    new_team2 = selected_event['away_team']
+                                    new_date = datetime.fromisoformat(
+                                        selected_event['commence_time'].replace("Z", "+00:00")
+                                    ).strftime("%d/%m/%Y")
+                                    
+                                    print(f"  Selected game: {new_team1} vs {new_team2} on {new_date}")
+                                    
+                                    # Create updated prediction request with selected event
+                                    updated_request = {
+                                        "season": prediction_request["season"],
+                                        "league": prediction_request["league"],
+                                        "team1": prediction_request["team1"],
+                                        "team2": prediction_request["team2"],
+                                        "gameDate": prediction_request["gameDate"],
+                                        "selected_event": selected_event
+                                    }
+                                    
+                                    # Submit new job with selected event
+                                    response = requests.post(f"{base_url}/predict", json=updated_request)
+                                    if response.status_code == 200:
+                                        job_response = response.json()
+                                        job_id = job_response.get('job_id')
+                                        print(f"  New job started with ID: {job_id}")
+                                        status = "pending"
+                                    else:
+                                        print(f"  Error submitting job with selected event: {response.status_code} - {response.text}")
+                                        return False
+                                    break
+                                else:
+                                    print(f"  Please enter a number between 1 and {len(upcoming_games)}")
+                            except ValueError:
+                                print("  Invalid input. Please enter a number.")
+                    else:
+                        print("  No upcoming games available for the next week.")
+                        return False
+                
+                elif status == "completed":
                     result = job_status.get('result', {})
                     print(f"  Team1 ({result.get('team1', {}).get('name')}): {result.get('team1', {}).get('games_count')} games")
                     print(f"  Team2 ({result.get('team2', {}).get('name')}): {result.get('team2', {}).get('games_count')} games")
@@ -201,7 +258,7 @@ def test_go_api():
     # 5. Get team data
     print("\n5. Getting team1 data...")
     try:
-        response = requests.get(f"{base_url}/data/team?team={urllib.parse.quote(team1)}")
+        response = requests.get(f"{base_url}/data/team?team=team1")
         if response.status_code == 200:
             data_response = response.json()
             shape = data_response.get('shape', [0, 0])
@@ -215,47 +272,44 @@ def test_go_api():
         print(f"  Request error: {str(e)}")
         return False
     
-    # 6. Get next game data
-    print("\n6. Getting next game data...")
-    
-        # Fetch odds and goals data using NextGameScraper (local for verification)
-    odds_data = nextGameScrapping.get_next_game_data('', team1, team2, game_date, selected_league)
-    goals_data = nextGameScrapping.get_next_game_goals_data('', team1, team2, game_date, selected_league)
-
-        # Check if odds data contains an error
-    if 'error' in odds_data:
-        print(f"  Error retrieving odds: {odds_data['error']}")
-    else:
-        print(f"  Odds retrieved: Home: {odds_data.get('B365H', 'N/A')}, "f"Draw: {odds_data.get('B365D', 'N/A')}, Away: {odds_data.get('B365A', 'N/A')}")
-
-        # Check if goals data contains an error
-        if 'error' in goals_data:
-            print(f"  Error retrieving goals odds: {goals_data['error']}")
+    print("\n6. Getting team2 data...")
+    try:
+        response = requests.get(f"{base_url}/data/team?team=team2")
+        if response.status_code == 200:
+            data_response = response.json()
+            shape = data_response.get('shape', [0, 0])
+            columns = data_response.get('columns', [])
+            print(f"  DataFrame shape: {shape[0]} rows x {shape[1]} columns")
+            print(f"  Columns: {', '.join(columns)}")
         else:
-            print(f"  Goals odds retrieved: Over 2.5: {goals_data.get('B365>2.5', 'N/A')}, "
-                  f"Under 2.5: {goals_data.get('B365<2.5', 'N/A')}")
-
-            # 6. Get next game data
-            print("\n6. Getting next game data...")
-            try:
-                response = requests.get(f"{base_url}/data/next-game")
-                if response.status_code == 200:
-                    data_response = response.json()
-                    data = data_response.get('data', [])
-                    if data:
-                        print(f"  Next game: {data[0].get('HomeTeam')} vs {data[0].get('AwayTeam')}")
-                        print(f"  Odds Home: {data[0].get('B365H', 'N/A')}, "
-                            f"Draw: {data[0].get('B365D', 'N/A')}, Away: {data[0].get('B365A', 'N/A')}")
-                        print(f"  Goals odds: Over 2.5: {data[0].get('B365>2.5', 'N/A')}, "
-                            f"Under 2.5: {data[0].get('B365<2.5', 'N/A')}")
-                    else:
-                        print("  No next game data available from API.")
-                else:
-                    print(f"  Error: {response.status_code} - {response.text}")
-                    return False
-            except Exception as e:
-                print(f"  Request error: {str(e)}")
+            print(f"  Error: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        print(f"  Request error: {str(e)}")
+        return False
+    
+    # 7. Get next game data
+    print("\n7. Getting next game data...")
+    try:
+        response = requests.get(f"{base_url}/data/next-game")
+        if response.status_code == 200:
+            data_response = response.json()
+            data = data_response.get('data', [])
+            if data:
+                print(f"  Next game: {data[0].get('HomeTeam')} vs {data[0].get('AwayTeam')}")
+                print(f"  Odds Home: {data[0].get('B365H', 'N/A')}, "
+                      f"Draw: {data[0].get('B365D', 'N/A')}, Away: {data[0].get('B365A', 'N/A')}")
+                print(f"  Goals odds: Over 2.5: {data[0].get('B365>2.5', 'N/A')}, "
+                      f"Under 2.5: {data[0].get('B365<2.5', 'N/A')}")
+            else:
+                print("  No next game data available from API.")
                 return False
+        else:
+            print(f"  Error: {response.status_code} - {response.text}")
+            return False
+    except Exception as e:
+        print(f"  Request error: {str(e)}")
+        return False
     
     print("\nAll tests to the Go API completed successfully!")
     return True
